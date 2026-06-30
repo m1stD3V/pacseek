@@ -40,8 +40,13 @@ flowchart TD
         PKG["Package"]:::model
     end
 
+    subgraph syslayer ["system · OS side effects"]
+        TX["transaction<br/><i>install · remove</i>"]:::sys
+    end
+
     THEME["theme.hpp<br/><i>every design token, named</i>"]:::theme
     LIBALPM[("libalpm<br/>pacman DBs")]:::ext
+    PACMAN[("sudo pacman<br/>· AUR helper")]:::ext
 
     CLI -->|input| APP
     MAIN -->|selects| PSRC
@@ -51,6 +56,7 @@ flowchart TD
     APP -->|owns| CAT
     APP -->|draws via| RENDER
     APP -->|loads once| PSRC
+    APP -->|applies| TX
 
     RENDER -->|reads| STATE
     RENDER -->|queries| CAT
@@ -59,6 +65,7 @@ flowchart TD
     PSRC -.implemented by.-> ALPM
     PSRC -.implemented by.-> MOCK
     ALPM -->|reads| LIBALPM
+    TX -->|shells out| PACMAN
     ALPM -->|produces| PKG
     MOCK -->|produces| PKG
     CAT -->|owns| PKG
@@ -73,12 +80,14 @@ flowchart TD
     classDef model fill:#1a1a1d,stroke:#b8b6b0,stroke-width:1.5px,color:#e9e7e2
     classDef theme fill:#2a2210,stroke:#e0b341,stroke-width:1.5px,color:#e9e7e2
     classDef ext fill:#0b0b0d,stroke:#5d5d5a,stroke-width:1px,color:#9a9a95,stroke-dasharray:4 3
+    classDef sys fill:#201410,stroke:#e8643a,stroke-width:1.5px,color:#e9e7e2
 
     style entry fill:#0e0e10,stroke:#1c1c20
     style applayer fill:#0e0e10,stroke:#1c1c20,color:#5d5d5a
     style uilayer fill:#0e0e10,stroke:#1c1c20,color:#5d5d5a
     style datalayer fill:#0e0e10,stroke:#1c1c20,color:#5d5d5a
     style modellayer fill:#0e0e10,stroke:#1c1c20,color:#5d5d5a
+    style syslayer fill:#0e0e10,stroke:#1c1c20,color:#5d5d5a
 ```
 
 - **`theme.hpp`** is a leaf with no dependencies. Every color, threshold, and
@@ -280,6 +289,52 @@ card.
 
 ---
 
+## Applying transactions
+
+Modifying the system is the one place PacSeek deliberately leaves its own process.
+Rather than drive libalpm's transaction API in-process (which would mean running as
+root and re-implementing pacman's dependency resolution, conflict handling, and
+signature checks), it shells out to the tools that already do that correctly.
+
+The `system/` layer is intentionally tiny and dependency-light: it knows nothing of
+`model/` or FTXUI, speaking only in package names and an is-AUR flag. That keeps
+command building a pure function, easy to test in isolation.
+
+```
+TriggerActionOnSelection (event handler)
+  ├─ read-only source?  → just set a "would install/remove" status, done
+  ├─ BuildCommandLine(action, name, is_aur, tools) → command string (or error)
+  │     repo install   → sudo pacman -S --needed <pkg>
+  │     repo remove    → sudo pacman -Rs <pkg>   (also drops unused deps)
+  │     AUR install    → <paru|yay> -S <pkg>   (no sudo; helper escalates itself)
+  │     AUR/none, etc. → error string, shown in the status line
+  └─ queue the command, then screen.Exit()
+        │
+        ▼  (Loop returns; the alternate screen is now torn down)
+ApplyPendingTransaction
+  ├─ RunInTerminal: print header, std::system(command), wait for Enter
+  ├─ catalog.SetPackages(source.LoadPackages())   ← system changed, reload
+  └─ set a result status, then the run loop re-enters screen.Loop()
+```
+
+Three properties make this safe and predictable:
+
+- **The TUI gets out of the way.** Suspending to the plain terminal lets `sudo`
+  and pacman prompt normally; the user sees and confirms exactly what happens.
+- **Names are validated.** `BuildCommandLine` rejects any package name outside
+  Arch's restricted alphabet, so a name can never inject shell syntax.
+- **Capabilities are detected, not assumed.** `DetectTools` probes PATH once for
+  `sudo` and an AUR helper; missing tools produce a clear status message instead
+  of a broken command.
+
+Tool detection and command construction live in `system/transaction.cpp`; the
+suspend / reload / resume orchestration lives in `App::Run` and
+`App::ApplyPendingTransaction`. Whether the action keys do anything at all is
+gated on `PackageSource::IsReadOnly()` — `true` for `MockSource` (notice only),
+`false` for `AlpmSource` (the live system).
+
+---
+
 ## Design tokens
 
 `theme.hpp` is the single source of truth for the look:
@@ -304,6 +359,7 @@ named, never inline at the call site.
   `Catalog`'s `MatchesView` / `Visible` about it; the nav and key bindings follow.
 - **A visual change**: adjust a token in `theme.hpp`. If you find yourself typing
   a literal color or width in `components.cpp`, add a named token instead.
-- **Transactions**: `App::TriggerActionOnSelection` is the hook. It currently
-  shows a read-only notice; real install/remove (with privilege escalation) slots
-  in there, gated on `PackageSource::IsReadOnly()`.
+- **Transaction behavior**: command construction lives in `system/transaction.cpp`.
+  To change how installs/removes run (extra pacman flags, a different escalation
+  tool, more AUR helpers), edit `BuildCommandLine` and `DetectTools` there; the
+  app and UI are unaffected.

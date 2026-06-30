@@ -41,6 +41,7 @@ add_executable(pacseek
   src/model/catalog.cpp
   src/data/mock_source.cpp
   src/data/alpm_source.cpp
+  src/system/transaction.cpp
   src/ui/components.cpp
   src/app/app.cpp)
 

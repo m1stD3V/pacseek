@@ -72,10 +72,12 @@ and mono data type.
 
 ## Status
 
-**Read-only browse.** Search, listing, sizes, update detection, and the disk
-footprint are all live from libalpm. `INSTALL` / `REMOVE` buttons render but are
-**informational only**. Applying transactions (with privilege escalation) and live
-AUR RPC search are the next milestones. See [Roadmap](#roadmap).
+**Browse and modify.** Search, listing, sizes, update detection, and the disk
+footprint are live from libalpm. On the live system, `enter` now applies **real
+transactions**: repository packages through `sudo pacman`, AUR packages through a
+detected helper (`paru` / `yay`). The `--mock` dataset stays read-only and just
+shows what it would do. Live AUR RPC search is the next milestone. See
+[Roadmap](#roadmap).
 
 ---
 
@@ -129,7 +131,7 @@ This drops the binary at `~/.local/bin/pacseek`. If `~/.local/bin` is on your
 | `/` | focus search (`Esc` or `Enter` to leave) |
 | `j` / `k` | move selection (also `↓` / `↑`) |
 | `s` | toggle sort: size ↓ / name ↓ |
-| `enter` / `space` | act on selection (read-only notice for now) |
+| `enter` / `space` | act on selection (install / remove on the live system) |
 | `q` / `esc` | quit |
 
 ### Views
@@ -166,6 +168,23 @@ Pinned to the foot of the sidebar:
 Drive capacity is measured once at startup from the root filesystem. The segmented
 bar uses each repository's identity color, so you can see at a glance which sources
 own your disk.
+
+### Applying changes
+
+On the live backend, `enter` installs the selected package (or removes it if it's
+already installed). PacSeek suspends its interface, runs the operation in the plain
+terminal so you can see and confirm everything, then reloads and resumes:
+
+- **Repository packages** run through `sudo pacman -S --needed <pkg>` (install) or
+  `sudo pacman -Rs <pkg>` (remove, which also clears dependencies no other package
+  still needs). You'll be prompted for your password and for pacman's own
+  confirmation.
+- **AUR packages** install through a detected helper, `paru` or `yay`, run as your
+  normal user. If neither is installed, PacSeek says so rather than guessing.
+- PacSeek never composes a privileged command from anything but a validated package
+  name, and it performs no action until you confirm at the prompts.
+
+Under `--mock`, `enter` only reports what it *would* do — nothing touches the system.
 
 ---
 
@@ -205,8 +224,13 @@ flowchart TD
         PKG["Package"]:::model
     end
 
+    subgraph syslayer ["system · OS side effects"]
+        TX["transaction<br/><i>install · remove</i>"]:::sys
+    end
+
     THEME["theme.hpp<br/><i>every design token, named</i>"]:::theme
     LIBALPM[("libalpm<br/>pacman DBs")]:::ext
+    PACMAN[("sudo pacman<br/>· AUR helper")]:::ext
 
     CLI -->|input| APP
     MAIN -->|selects| PSRC
@@ -216,6 +240,7 @@ flowchart TD
     APP -->|owns| CAT
     APP -->|draws via| RENDER
     APP -->|loads once| PSRC
+    APP -->|applies| TX
 
     RENDER -->|reads| STATE
     RENDER -->|queries| CAT
@@ -224,6 +249,7 @@ flowchart TD
     PSRC -.implemented by.-> ALPM
     PSRC -.implemented by.-> MOCK
     ALPM -->|reads| LIBALPM
+    TX -->|shells out| PACMAN
     ALPM -->|produces| PKG
     MOCK -->|produces| PKG
     CAT -->|owns| PKG
@@ -238,12 +264,14 @@ flowchart TD
     classDef model fill:#1a1a1d,stroke:#b8b6b0,stroke-width:1.5px,color:#e9e7e2
     classDef theme fill:#2a2210,stroke:#e0b341,stroke-width:1.5px,color:#e9e7e2
     classDef ext fill:#0b0b0d,stroke:#5d5d5a,stroke-width:1px,color:#9a9a95,stroke-dasharray:4 3
+    classDef sys fill:#201410,stroke:#e8643a,stroke-width:1.5px,color:#e9e7e2
 
     style entry fill:#0e0e10,stroke:#1c1c20
     style applayer fill:#0e0e10,stroke:#1c1c20,color:#5d5d5a
     style uilayer fill:#0e0e10,stroke:#1c1c20,color:#5d5d5a
     style datalayer fill:#0e0e10,stroke:#1c1c20,color:#5d5d5a
     style modellayer fill:#0e0e10,stroke:#1c1c20,color:#5d5d5a
+    style syslayer fill:#0e0e10,stroke:#1c1c20,color:#5d5d5a
 ```
 
 The file map:
@@ -262,6 +290,9 @@ src/
     mock_source.{hpp,cpp}  the prototype's fixed 22-package dataset (--mock)
     alpm_source.{hpp,cpp}  libalpm: local DB joined against sync DBs, with
                            update detection; foreign packages shown as AUR
+  system/                OS side effects, isolated from the rest
+    transaction.{hpp,cpp}  install / remove via pacman + AUR helper, with
+                           safe command building and tool detection
   ui/
     components.{hpp,cpp} the brutalist render layer: pure state → Element
                          builders, including the virtualized package list
@@ -299,7 +330,7 @@ Thresholds and dimensions live alongside the palette in
 - [x] Read-only browse with live sizes, update detection, and disk footprint
 - [x] Virtualized package list (handles full catalogs smoothly)
 - [x] Disk footprint against total drive capacity
-- [ ] Apply transactions (install / remove) with privilege escalation
+- [x] Apply transactions (install / remove) with privilege escalation
 - [ ] Live AUR RPC search
 - [ ] Per-package detail pane (dependencies, files, provenance)
 

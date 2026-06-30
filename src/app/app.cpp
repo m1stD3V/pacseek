@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <array>
+#include <string>
 
 #include <sys/statvfs.h>
 
@@ -35,7 +36,10 @@ int64_t QueryDiskCapacityBytes() {
 }  // namespace
 
 App::App(data::PackageSource& source)
-    : catalog_(source.LoadPackages()), screen_(ftxui::ScreenInteractive::Fullscreen()) {
+    : source_(source),
+      catalog_(source.LoadPackages()),
+      tools_(system::DetectTools()),
+      screen_(ftxui::ScreenInteractive::Fullscreen()) {
   state_.source_name = source.Name();
   state_.read_only = source.IsReadOnly();
   state_.disk_total_bytes = QueryDiskCapacityBytes();
@@ -76,12 +80,48 @@ void App::TriggerActionOnSelection() {
     return;
   }
   const model::Package& package = *visible[state_.selected_index];
-  const char* verb = package.installed ? "remove" : "install";
+  const system::Action action =
+      package.installed ? system::Action::Remove : system::Action::Install;
+
   if (state_.read_only) {
+    const char* verb = package.installed ? "remove" : "install";
     state_.status_message = "READ-ONLY · would " + std::string(verb) + " " + package.name;
+    return;
+  }
+
+  std::string error;
+  const bool is_aur = package.repo == model::Repo::Aur;
+  std::string command = system::BuildCommandLine(action, package.name, is_aur, tools_, error);
+  if (command.empty()) {
+    state_.status_message = error;
+    return;
+  }
+
+  // Queue it and leave the loop; the work happens in the restored terminal so
+  // sudo and pacman can prompt the user. See ApplyPendingTransaction.
+  pending_transaction_ = PendingTransaction{action, package.name, std::move(command)};
+  screen_.Exit();
+}
+
+void App::ApplyPendingTransaction() {
+  const PendingTransaction transaction = *pending_transaction_;
+  pending_transaction_.reset();
+
+  const bool installing = transaction.action == system::Action::Install;
+  const std::string header =
+      (installing ? "Installing " : "Removing ") + transaction.package_name;
+  const int status = system::RunInTerminal(transaction.command_line, header);
+
+  // The system changed: reload from the source and keep the selection valid.
+  catalog_.SetPackages(source_.LoadPackages());
+  ResetSelection();
+
+  if (status == 0) {
+    state_.status_message =
+        (installing ? "installed " : "removed ") + transaction.package_name;
   } else {
-    // Real transactions land here in a later milestone.
-    state_.status_message = std::string(verb) + " not yet wired";
+    state_.status_message = "command exited " + std::to_string(status) + " · " +
+                            transaction.package_name + " unchanged";
   }
 }
 
@@ -162,7 +202,17 @@ void App::Run() {
   });
 
   auto root = ftxui::CatchEvent(renderer, [this](const Event& event) { return HandleEvent(event); });
-  screen_.Loop(root);
+
+  // The loop exits either to quit or to apply a queued transaction. In the
+  // latter case the alternate screen is now torn down, so pacman can run in the
+  // plain terminal; afterwards we re-enter the loop with the reloaded catalog.
+  while (true) {
+    screen_.Loop(root);
+    if (!pending_transaction_.has_value()) {
+      break;
+    }
+    ApplyPendingTransaction();
+  }
 }
 
 }  // namespace pacseek::app

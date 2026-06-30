@@ -19,7 +19,9 @@ class AlpmSource : public PackageSource {
   // Throws std::runtime_error if libalpm cannot be initialized (e.g. the db path
   // is unreadable); the caller can then suggest `--mock`.
   std::vector<model::Package> LoadPackages() override;
-  bool IsReadOnly() const override { return true; }
+  // The live system can be modified: install/remove shell out to pacman (and an
+  // AUR helper) with privilege escalation. See system/transaction.
+  bool IsReadOnly() const override { return false; }
   std::string Name() const override { return "libalpm"; }
 
  private:
