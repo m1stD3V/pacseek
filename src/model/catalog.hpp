@@ -1,0 +1,59 @@
+// catalog.hpp — owns the package set and answers every derived question the UI
+// asks: which rows are visible, how the nav/legend counts add up, and the disk
+// footprint breakdown. Pure logic, no I/O — trivially testable.
+#pragma once
+
+#include <array>
+#include <cstdint>
+#include <string>
+#include <vector>
+
+#include "model/package.hpp"
+
+namespace pacseek::model {
+
+// Which slice of the catalog the user is looking at (the LIBRARY nav).
+enum class View { Browse, Installed, Updates, Aur };
+
+// Row ordering toggled by the SORT control.
+enum class Sort { SizeDescending, NameAscending };
+
+// Installed-size totals per repo, used to draw the stacked footprint bar.
+struct RepoFootprint {
+  Repo repo;
+  int64_t install_size_bytes;
+};
+
+class Catalog {
+ public:
+  Catalog() = default;
+  explicit Catalog(std::vector<Package> packages);
+
+  void SetPackages(std::vector<Package> packages);
+  const std::vector<Package>& All() const { return packages_; }
+
+  // Rows to display for the given view, narrowed by a case-insensitive search
+  // over name + description, then ordered by the sort mode. Returns pointers
+  // into the owned package list (stable for the lifetime of the catalog).
+  std::vector<const Package*> Visible(View view, const std::string& query, Sort sort) const;
+
+  // Nav counts reflect the whole dataset, independent of the active search.
+  int CountForView(View view) const;
+
+  // Installed-package count for one repo (the REPOSITORIES legend).
+  int InstalledCountForRepo(Repo repo) const;
+
+  // The largest installed footprint across the whole dataset; storage bars are
+  // normalized to this so they stay comparable between views.
+  int64_t MaxInstallSizeBytes() const;
+
+  // DISK FOOTPRINT card figures.
+  int64_t TotalInstalledBytes() const;
+  int InstalledCount() const;
+  std::vector<RepoFootprint> InstalledFootprintByRepo() const;
+
+ private:
+  std::vector<Package> packages_;
+};
+
+}  // namespace pacseek::model

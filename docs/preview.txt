@@ -1,0 +1,40 @@
+ ◆ PACSEEK   PACKAGE MANAGER · PACMAN + AUR                                                                                                     ▢ ▢ ▣
+──────────────────────────────┬───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                              │ ❯ Search pacman + AUR…                                                                       22 RESULTS   SORT SIZE ↓
+  LIBRARY                     ├───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                              │  PACKAGE                                                 REPO        STORAGE IMPACT                    SIZE    ACTION
+  ◈ Browse                22  ├───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ▣ Installed             17  │ rustup  1.27.1-1                                          EXTRA                                     680 MiB    REMOVE
+  ↑ Updates                3  │ The Rust toolchain installer                                         DL 210 MiB     100% OF MAX
+  ✦ AUR                    3  ├───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                              │ blender  4.1.1-3                                          EXTRA                                     520 MiB   INSTALL
+  REPOSITORIES                │ A fully integrated 3D graphics suite                                 DL 180 MiB      76% OF MAX
+                              ├───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  █ CORE                   2  │ docker  26.1.4-1                                          EXTRA                                     420 MiB   INSTALL
+  █ EXTRA                 12  │ Pack, ship and run any application                                   DL 130 MiB      62% OF MAX
+  █ AUR                    3  ├───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  █ MULTILIB               0  │ steam  1.0.0.79-1                                         MULTILIB                                  380 MiB   INSTALL
+                              │ Valve's digital software delivery system                             DL 120 MiB      56% OF MAX
+                              ├───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                              │ visual-studio-code-bin  1.90.2-1                          AUR                                       380 MiB    REMOVE
+                              │ Microsoft code editor (binary release)                               DL 110 MiB      56% OF MAX
+                              ├───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                              │ spotify  1.2.40-1  UPDATE                                 AUR                                       310 MiB    REMOVE
+                              │ A proprietary music streaming service                                DL 96 MiB       46% OF MAX
+                              ├───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                              │ krita  5.2.2-1                                            EXTRA                                     290 MiB   INSTALL
+                              │ Edit and paint images, digital painting                              DL 96 MiB       43% OF MAX
+                              ├───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                              │ obsidian  1.6.3-1                                         AUR                                       290 MiB    REMOVE
+                              │ Knowledge base on local Markdown files                               DL 92 MiB       43% OF MAX
+                              ├───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                              │ firefox  141.0-1                                          EXTRA                                     248 MiB    REMOVE
+──────────────────────────────┤ Standalone web browser from Mozilla                                  DL 78 MiB       36% OF MAX
+  DISK FOOTPRINT              ├───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                              │ gimp  2.10.38-1                                           EXTRA                                     240 MiB    REMOVE
+  2.77 GiB                    │ GNU Image Manipulation Program                                       DL 88 MiB       35% OF MAX
+                              ├───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                              │ discord  0.0.60-1                                         EXTRA                                     195 MiB    REMOVE
+                              │ All-in-one voice and text chat                                       DL 72 MiB       29% OF MAX
+  17 packages installed       ├───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                              │ ● SYNCED   3 UPDATES AVAILABLE           1-4 view · / search · j/k move · s sort · q quit            mock · READ-ONLY
