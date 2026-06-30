@@ -38,8 +38,8 @@ and mono data type.
                               │ ❯ Search pacman + AUR…                22 RESULTS  SORT SIZE ↓
   LIBRARY                     ├─────────────────────────────────────────────────────────
                               │  PACKAGE                       REPO     STORAGE IMPACT      SIZE    ACTION
-  ◈ Browse                22  ├─────────────────────────────────────────────────────────
-  ▣ Installed             17  │ rustup  1.27.1-1               EXTRA    ██████████████     680 MiB  REMOVE
+  ◈ Browse                22 ├─────────────────────────────────────────────────────────
+  ▣ Installed             17 │ rustup  1.27.1-1               EXTRA    ██████████████     680 MiB  REMOVE
   ↑ Updates                3  │ The Rust toolchain installer            DL 210 MiB  100% OF MAX
   ✦ AUR                    3  ├─────────────────────────────────────────────────────────
                               │ blender  4.1.1-3               EXTRA    ██████████░░░░     520 MiB  INSTALL
@@ -51,7 +51,7 @@ and mono data type.
 ──────────────────────────────┤
   DISK FOOTPRINT              │
   24.56 GiB / 852.86 GiB      │   ← installed total / whole-drive capacity
-  ██████░░░░░░░░░░░░░░░░       │   ← segmented by repository color
+  ██████░░░░░░░░░░░░░░░░      │   ← segmented by repository color
   1365 packages · 2.9% of disk│
 ```
 
