@@ -1,4 +1,4 @@
-# PacSeek — Architecture
+# PacSeek Architecture
 
 A tour of how PacSeek is put together: the layers, the data flow each frame, the
 rendering model, and the design decisions worth knowing before you change things.
@@ -133,7 +133,7 @@ asks, all as pure functions over the owned data:
 | `TotalInstalledBytes()` / `InstalledCount()` | the footprint card headline |
 | `InstalledFootprintByRepo()` | the segmented footprint bar |
 
-`Visible` returns `const Package*` pointers rather than copies — they stay valid
+`Visible` returns `const Package*` pointers rather than copies; they stay valid
 for the catalog's lifetime, and the render layer only reads them.
 
 ---
@@ -151,7 +151,7 @@ class PackageSource {
 ```
 
 `LoadPackages()` may be slow (database, and later network), so the app calls it
-**once** at startup and hands the result to the catalog — never per frame.
+**once** at startup and hands the result to the catalog, never per frame.
 
 ### `AlpmSource` (live)
 
@@ -164,10 +164,10 @@ Reads pacman's databases directly through libalpm:
    the picture of what is currently installed.
 3. **Discover sync repos** by scanning `db_path/sync/*.db`, ordering the
    well-known `core` / `extra` / `multilib` first so the UI is stable.
-4. **Join** each sync entry against the installed map — marking `installed`, and
+4. **Join** each sync entry against the installed map, marking `installed`, and
    setting `has_update` when `alpm_pkg_vercmp` finds the sync version newer. A
    package appearing in multiple repos keeps its first (highest-priority) listing.
-5. **Append foreign packages** — anything installed but absent from every sync
+5. **Append foreign packages**: anything installed but absent from every sync
    repo (AUR builds, hand-built packages) is surfaced as `Repo::Aur`, sized from
    the local database.
 
@@ -178,7 +178,7 @@ and `AppendForeignPackages` build on it so the mapping lives in one place.
 
 A fixed 22-package table lifted straight from the design handoff, sizes expressed
 in MiB exactly as the reference lists them. It satisfies the same interface, so
-the entire UI can be exercised with no system access — handy for previews and for
+the entire UI can be exercised with no system access, handy for previews and for
 iterating on the render layer.
 
 ---
@@ -201,7 +201,7 @@ sequenceDiagram
     Note over C: packages loaded once at startup
     U->>E: keystroke (j / k / s / / / 1-4)
     E->>S: mutate view · query · sort · selection
-    Note right of E: no rendering here — only state changes
+    Note right of E: no rendering here, only state changes
     E-->>SC: request redraw
 
     SC->>R: build frame
@@ -243,7 +243,7 @@ RenderApp
     └── main_column (vbox)
         ├── SearchBar
         ├── ColumnHeader
-        ├── PackageList      virtualized — see below
+        ├── PackageList      virtualized (see below)
         └── Footer
 ```
 
@@ -252,7 +252,7 @@ Two layout details are load-bearing:
 ### List virtualization
 
 A naïve list builds one `Element` per package. On a full system that is 15,000+
-rows, and the resulting column is taller than the terminal — which defeats FTXUI's
+rows, and the resulting column is taller than the terminal, which defeats FTXUI's
 height clamping and pushes the footer and the sidebar's footprint card off-screen.
 
 `PackageList` instead **renders only the window of rows that fits the terminal**,
@@ -266,7 +266,7 @@ int start = clamp(selected_index - capacity / 2, 0, max(0, count - capacity));
 
 This keeps the list's height bounded to the screen (so the surrounding layout
 clamps correctly and the footprint card stays pinned), and it is far cheaper to
-lay out — only a screenful of elements is built each frame regardless of catalog
+lay out: only a screenful of elements is built each frame regardless of catalog
 size.
 
 ### Sidebar pinning
@@ -275,7 +275,7 @@ The sidebar is a `vbox` of `{ nav+legend | flex, separator, FootprintCard }`. Th
 nav/legend block flexes to fill space and push the card to the foot (clipping its
 lowest rows first on a very short terminal), while the footprint card and its rule
 stay anchored at the bottom. This works precisely *because* the package list is
-virtualized — an unbounded list would inflate the shared row height and starve the
+virtualized: an unbounded list would inflate the shared row height and starve the
 card.
 
 ---
@@ -284,14 +284,14 @@ card.
 
 `theme.hpp` is the single source of truth for the look:
 
-- **`color`** — surfaces, the Braun-orange accent ramp, the four repository
+- **`color`**: surfaces, the Braun-orange accent ramp, the four repository
   identity colors, status tones, and assorted chrome tints, all as `Color::RGB`.
-- **`size`** — the 300 MiB "heavy" threshold and the byte/MiB/GiB/TiB constants
+- **`size`**: the 300 MiB "heavy" threshold and the byte/MiB/GiB/TiB constants
   that drive `FormatSize` and the heavy highlight.
-- **`layout`** — column widths and the storage-bar track width, in terminal cells.
+- **`layout`**: column widths and the storage-bar track width, in terminal cells.
 
 If a value affects how something looks or where a threshold sits, it belongs here,
-named — never inline at the call site.
+named, never inline at the call site.
 
 ---
 

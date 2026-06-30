@@ -1,2 +1,5 @@
 /build/
 compile_commands.json
+
+# Visual design handoff package (reference material, not source)
+/pacseek design/
