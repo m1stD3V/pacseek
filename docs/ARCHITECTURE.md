@@ -136,6 +136,8 @@ asks, all as pure functions over the owned data:
 | Method | Answers |
 |--------|---------|
 | `Visible(view, query, sort)` | which rows to draw, as stable pointers into the owned vector |
+| `VisibleInSet(names, query, sort)` | the rows for a curated collection (members resolved by name) |
+| `MembershipCounts(names)` | a collection card's "n of m available · k installed" readout |
 | `CountForView(view)` | nav badge counts (whole dataset, ignores search) |
 | `InstalledCountForRepo(repo)` | the REPOSITORIES legend |
 | `MaxInstallSizeBytes()` | the normalizer for every impact bar |
@@ -144,6 +146,16 @@ asks, all as pure functions over the owned data:
 
 `Visible` returns `const Package*` pointers rather than copies; they stay valid
 for the catalog's lifetime, and the render layer only reads them.
+
+### `model::Collection`
+
+Static, hand-curated package bundles grouped by use case (gaming, creative work,
+development, …), exposed by `BuiltinCollections()`. A `Collection` is pure data -
+`{id, name, icon, description, packages}` - and never touches the system: the
+`Collections` view's picker drills into one and asks the catalog to resolve its
+member names against the live package set (`VisibleInSet` / `MembershipCounts`),
+so a collection that lists an AUR-only name simply shows it as unavailable until
+the user installs it through the AUR view.
 
 ---
 
@@ -330,7 +342,7 @@ Three properties make this safe and predictable:
 Tool detection and command construction live in `system/transaction.cpp`; the
 suspend / reload / resume orchestration lives in `App::Run` and
 `App::ApplyPendingTransaction`. Whether the action keys do anything at all is
-gated on `PackageSource::IsReadOnly()` — `true` for `MockSource` (notice only),
+gated on `PackageSource::IsReadOnly()` - `true` for `MockSource` (notice only),
 `false` for `AlpmSource` (the live system).
 
 ---
