@@ -3,6 +3,8 @@
 #include <alpm.h>
 
 #include <algorithm>
+#include <cstdlib>
+#include <ctime>
 #include <filesystem>
 #include <stdexcept>
 #include <string>
@@ -34,6 +36,45 @@ struct AlpmHandle {
 
 std::string SafeString(const char* text) {
   return text != nullptr ? std::string(text) : std::string();
+}
+
+// Formats an alpm timestamp (seconds since epoch) as local "YYYY-MM-DD HH:MM",
+// or "" when it is zero / cannot be rendered.
+std::string FormatTimestamp(alpm_time_t when) {
+  if (when == 0) {
+    return {};
+  }
+  const std::time_t seconds = static_cast<std::time_t>(when);
+  std::tm calendar;
+  if (localtime_r(&seconds, &calendar) == nullptr) {
+    return {};
+  }
+  char buffer[32];
+  if (std::strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M", &calendar) == 0) {
+    return {};
+  }
+  return std::string(buffer);
+}
+
+// Collects an alpm_list of C strings into a vector.
+std::vector<std::string> StringList(alpm_list_t* list) {
+  std::vector<std::string> out;
+  for (alpm_list_t* node = list; node != nullptr; node = node->next) {
+    out.push_back(SafeString(static_cast<const char*>(node->data)));
+  }
+  return out;
+}
+
+// Renders a dependency list (alpm_depend_t) as "name<op>version" strings; for
+// optdepends, alpm appends ": <reason>" automatically.
+std::vector<std::string> DependList(alpm_list_t* list) {
+  std::vector<std::string> out;
+  for (alpm_list_t* node = list; node != nullptr; node = node->next) {
+    char* rendered = alpm_dep_compute_string(static_cast<alpm_depend_t*>(node->data));
+    out.push_back(SafeString(rendered));
+    std::free(rendered);
+  }
+  return out;
 }
 
 // Discovers sync repo names from the *.db files on disk, returning them with the
@@ -173,6 +214,80 @@ std::vector<model::Package> AlpmSource::LoadPackages() {
 
   AppendForeignPackages(handle, seen_names, packages);
   return packages;
+}
+
+model::PackageDetail AlpmSource::Describe(const model::Package& package) {
+  // Echo the row's identity first so the pane is never blank, even if the lookup
+  // below fails (an un-built AUR result has no database entry).
+  model::PackageDetail detail;
+  detail.name = package.name;
+  detail.version = package.version;
+  detail.description = package.description;
+  detail.repo = package.repo;
+  detail.install_size_bytes = package.install_size_bytes;
+
+  AlpmHandle guard;
+  alpm_errno_t init_error = ALPM_ERR_OK;
+  guard.handle = alpm_initialize(root_.c_str(), db_path_.c_str(), &init_error);
+  if (guard.handle == nullptr) {
+    detail.note = std::string("libalpm unavailable: ") + alpm_strerror(init_error);
+    return detail;
+  }
+  alpm_handle_t* handle = guard.handle;
+
+  for (const std::string& repo_name : DiscoverSyncRepoNames(db_path_)) {
+    alpm_register_syncdb(handle, repo_name.c_str(), ALPM_SIG_USE_DEFAULT);
+  }
+
+  // Prefer the installed copy - only it carries files, install date, and reason.
+  // Fall back to the sync databases for available-but-not-installed packages.
+  alpm_pkg_t* found = nullptr;
+  bool from_local = false;
+  if (alpm_db_t* local_db = alpm_get_localdb(handle)) {
+    found = alpm_db_get_pkg(local_db, package.name.c_str());
+    from_local = found != nullptr;
+  }
+  for (alpm_list_t* db_node = alpm_get_syncdbs(handle);
+       found == nullptr && db_node != nullptr; db_node = db_node->next) {
+    found = alpm_db_get_pkg(static_cast<alpm_db_t*>(db_node->data), package.name.c_str());
+  }
+  if (found == nullptr) {
+    detail.note = "no database entry - details appear once the package is built/installed";
+    detail.files_note = "file list is available only after installation";
+    return detail;
+  }
+
+  detail.available = true;
+  detail.url = SafeString(alpm_pkg_get_url(found));
+  detail.packager = SafeString(alpm_pkg_get_packager(found));
+  detail.build_date = FormatTimestamp(alpm_pkg_get_builddate(found));
+  detail.licenses = StringList(alpm_pkg_get_licenses(found));
+  detail.install_size_bytes = static_cast<int64_t>(alpm_pkg_get_isize(found));
+  detail.depends = DependList(alpm_pkg_get_depends(found));
+  detail.optdepends = DependList(alpm_pkg_get_optdepends(found));
+
+  if (from_local) {
+    detail.install_date = FormatTimestamp(alpm_pkg_get_installdate(found));
+    detail.install_reason =
+        alpm_pkg_get_reason(found) == ALPM_PKG_REASON_EXPLICIT ? "explicit" : "dependency";
+
+    // compute_requiredby allocates a fresh list of strdup'd names; FREELIST
+    // releases both the nodes and the strings.
+    alpm_list_t* required_by = alpm_pkg_compute_requiredby(found);
+    detail.required_by = StringList(required_by);
+    FREELIST(required_by);
+
+    if (const alpm_filelist_t* filelist = alpm_pkg_get_files(found)) {
+      detail.files.reserve(filelist->count);
+      for (size_t i = 0; i < filelist->count; ++i) {
+        // libalpm stores paths relative to the root; present them absolute.
+        detail.files.push_back("/" + SafeString(filelist->files[i].name));
+      }
+    }
+  } else {
+    detail.files_note = "file list is available only after installation";
+  }
+  return detail;
 }
 
 }  // namespace pacseek::data

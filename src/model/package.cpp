@@ -14,11 +14,12 @@ struct RepoName {
 };
 
 // Single source of truth for repo<->name mapping, kept tiny and explicit.
-constexpr std::array<RepoName, 4> kRepoNames = {{
+constexpr std::array<RepoName, 5> kRepoNames = {{
     {Repo::Core, "core"},
     {Repo::Extra, "extra"},
     {Repo::Multilib, "multilib"},
     {Repo::Aur, "aur"},
+    {Repo::Flatpak, "flatpak"},
 }};
 
 char ToUpperAscii(char c) {
@@ -58,6 +59,8 @@ ftxui::Color RepoColor(Repo repo) {
       return theme::color::RepoMultilib;
     case Repo::Aur:
       return theme::color::RepoAur;
+    case Repo::Flatpak:
+      return theme::color::RepoFlatpak;
     case Repo::Unknown:
       break;
   }

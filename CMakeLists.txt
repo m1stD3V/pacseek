@@ -39,9 +39,15 @@ add_executable(pacseek
   src/main.cpp
   src/model/package.cpp
   src/model/catalog.cpp
+  src/model/collection.cpp
   src/data/mock_source.cpp
   src/data/alpm_source.cpp
+  src/data/flatpak_source.cpp
+  src/data/composite_source.cpp
   src/system/transaction.cpp
+  src/system/aur_client.cpp
+  src/config/config.cpp
+  src/config/collections.cpp
   src/ui/components.cpp
   src/app/app.cpp)
 
@@ -56,6 +62,9 @@ target_link_libraries(pacseek PRIVATE
 
 if(nlohmann_json_FOUND)
   target_link_libraries(pacseek PRIVATE nlohmann_json::nlohmann_json)
+  # Gates the real AUR RPC parser in system/aur_client.cpp; without JSON the
+  # client compiles to a stub that reports the feature as unavailable.
+  target_compile_definitions(pacseek PRIVATE PACSEEK_HAVE_JSON)
 endif()
 
 target_compile_options(pacseek PRIVATE -Wall -Wextra)

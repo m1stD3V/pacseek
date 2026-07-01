@@ -1,4 +1,4 @@
-// alpm_source.hpp — read-only package data from pacman's own libalpm: the local
+// alpm_source.hpp - read-only package data from pacman's own libalpm: the local
 // database (what's installed) joined against the sync databases (what's
 // available, sizes, and newer versions). No transactions are performed.
 #pragma once
@@ -19,6 +19,10 @@ class AlpmSource : public PackageSource {
   // Throws std::runtime_error if libalpm cannot be initialized (e.g. the db path
   // is unreadable); the caller can then suggest `--mock`.
   std::vector<model::Package> LoadPackages() override;
+  // Re-opens libalpm to gather one package's depends / files / provenance,
+  // preferring the local (installed) entry so files and install metadata are
+  // available, and falling back to the sync entry otherwise.
+  model::PackageDetail Describe(const model::Package& package) override;
   // The live system can be modified: install/remove shell out to pacman (and an
   // AUR helper) with privilege escalation. See system/transaction.
   bool IsReadOnly() const override { return false; }

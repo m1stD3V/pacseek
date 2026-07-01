@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <unordered_set>
 
 namespace pacseek::model {
 
@@ -24,6 +25,10 @@ bool MatchesView(const Package& package, View view) {
       return package.has_update;
     case View::Aur:
       return package.repo == Repo::Aur;
+    case View::Collections:
+      // Collections never filter through the view predicate; they go through
+      // VisibleInSet. Listing the case keeps the switch exhaustive.
+      return false;
   }
   return false;
 }
@@ -64,6 +69,44 @@ std::vector<const Package*> Catalog::Visible(View view, const std::string& query
               [](const Package* a, const Package* b) { return a->name < b->name; });
   }
   return visible;
+}
+
+std::vector<const Package*> Catalog::VisibleInSet(const std::vector<std::string>& names,
+                                                  const std::string& query, Sort sort) const {
+  const std::string lowered_query = ToLowerAscii(query);
+  const std::unordered_set<std::string> wanted(names.begin(), names.end());
+
+  std::vector<const Package*> visible;
+  for (const Package& package : packages_) {
+    if (wanted.count(package.name) != 0 && MatchesQuery(package, lowered_query)) {
+      visible.push_back(&package);
+    }
+  }
+
+  if (sort == Sort::SizeDescending) {
+    std::sort(visible.begin(), visible.end(), [](const Package* a, const Package* b) {
+      return a->install_size_bytes > b->install_size_bytes;
+    });
+  } else {
+    std::sort(visible.begin(), visible.end(),
+              [](const Package* a, const Package* b) { return a->name < b->name; });
+  }
+  return visible;
+}
+
+Catalog::Membership Catalog::MembershipCounts(const std::vector<std::string>& names) const {
+  const std::unordered_set<std::string> wanted(names.begin(), names.end());
+  Membership counts{0, 0};
+  for (const Package& package : packages_) {
+    if (wanted.count(package.name) == 0) {
+      continue;
+    }
+    ++counts.available;
+    if (package.installed) {
+      ++counts.installed;
+    }
+  }
+  return counts;
 }
 
 int Catalog::CountForView(View view) const {
@@ -109,8 +152,8 @@ int Catalog::InstalledCount() const {
 }
 
 std::vector<RepoFootprint> Catalog::InstalledFootprintByRepo() const {
-  constexpr std::array<Repo, 4> kOrderedRepos = {Repo::Core, Repo::Extra, Repo::Aur,
-                                                 Repo::Multilib};
+  constexpr std::array<Repo, 5> kOrderedRepos = {Repo::Core, Repo::Extra, Repo::Aur,
+                                                 Repo::Multilib, Repo::Flatpak};
   std::vector<RepoFootprint> footprints;
   for (Repo repo : kOrderedRepos) {
     int64_t bytes = 0;

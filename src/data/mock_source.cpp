@@ -67,4 +67,19 @@ std::vector<model::Package> MockSource::LoadPackages() {
   return packages;
 }
 
+model::PackageDetail MockSource::Describe(const model::Package& package) {
+  // The prototype dataset has no dependency or file metadata; echo the row's
+  // identity so the pane renders for design work, and say so plainly.
+  model::PackageDetail detail;
+  detail.available = false;
+  detail.note = "mock dataset · no dependency, file, or provenance data";
+  detail.name = package.name;
+  detail.version = package.version;
+  detail.description = package.description;
+  detail.repo = package.repo;
+  detail.install_size_bytes = package.install_size_bytes;
+  detail.files_note = "not available in the mock dataset";
+  return detail;
+}
+
 }  // namespace pacseek::data

@@ -1,4 +1,4 @@
-// package.hpp — the core domain type and its pure helpers.
+// package.hpp - the core domain type and its pure helpers.
 #pragma once
 
 #include <cstdint>
@@ -9,7 +9,9 @@
 namespace pacseek::model {
 
 // The repository a package belongs to. Drives badge color and the AUR filter.
-enum class Repo { Core, Extra, Multilib, Aur, Unknown };
+// Flatpak is not a pacman repo but rides the same machinery so its apps get a
+// badge, legend entry, and footprint segment like everything else.
+enum class Repo { Core, Extra, Multilib, Aur, Flatpak, Unknown };
 
 // One package as the UI cares about it. Sizes are stored in bytes so the libalpm
 // source can hand over native values without lossy conversion.
