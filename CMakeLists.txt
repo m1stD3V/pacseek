@@ -53,6 +53,9 @@ add_executable(pacseek
 
 target_include_directories(pacseek PRIVATE src)
 
+# Carry the project version into the binary so `--version` can report it.
+target_compile_definitions(pacseek PRIVATE PACSEEK_VERSION="${PROJECT_VERSION}")
+
 target_link_libraries(pacseek PRIVATE
   ftxui::screen
   ftxui::dom
@@ -69,8 +72,29 @@ endif()
 
 target_compile_options(pacseek PRIVATE -Wall -Wextra)
 
+# --- Tests --------------------------------------------------------------------
+# include(CTest) provides the BUILD_TESTING option (ON by default); the test
+# binary covers the pure layers - command builders, config/collections parsers,
+# catalog filtering - with no framework dependency. Run: ctest --test-dir build
+include(CTest)
+if(BUILD_TESTING)
+  add_executable(pacseek_tests
+    tests/pacseek_tests.cpp
+    src/system/transaction.cpp
+    src/config/config.cpp
+    src/config/collections.cpp
+    src/model/catalog.cpp)
+  target_include_directories(pacseek_tests PRIVATE src)
+  # model/package.hpp pulls in an FTXUI header for the repo-color type, so the
+  # tests need its include paths even though they never render anything.
+  target_link_libraries(pacseek_tests PRIVATE ftxui::screen)
+  target_compile_options(pacseek_tests PRIVATE -Wall -Wextra)
+  add_test(NAME pacseek_tests COMMAND pacseek_tests)
+endif()
+
 # --- Install ----------------------------------------------------------------
 # `cmake --install build` drops the binary in <prefix>/bin. Default prefix is
 # /usr/local (system-wide, needs root); pass --prefix ~/.local for a user install.
 include(GNUInstallDirs)
 install(TARGETS pacseek RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(FILES docs/pacseek.1 DESTINATION ${CMAKE_INSTALL_MANDIR}/man1)

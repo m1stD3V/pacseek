@@ -17,16 +17,23 @@
 #include "model/collection.hpp"
 #include "system/transaction.hpp"
 
+// Stamped in by CMake from the project version; fall back to a dev marker so the
+// binary still builds outside the CMake toolchain.
+#ifndef PACSEEK_VERSION
+#define PACSEEK_VERSION "0.0.0-dev"
+#endif
+
 namespace {
 
 constexpr const char* kUsage =
     "pacseek - tech-brutalist TUI package manager for pacman + AUR\n"
     "\n"
     "Usage: pacseek [options]\n"
-    "  --mock        Use the built-in prototype dataset instead of the live system\n"
-    "  -h, --help    Show this help and exit\n"
+    "  --mock         Use the built-in prototype dataset instead of the live system\n"
+    "  -V, --version  Show the version and exit\n"
+    "  -h, --help     Show this help and exit\n"
     "\n"
-    "Keys: 1-5 switch view · / search · j/k move · s sort · enter action · q quit\n";
+    "Keys: 1-6 switch view · / search · j/k move · s sort · enter action · q quit\n";
 
 bool HasFlag(int argc, char** argv, const std::string& flag) {
   for (int index = 1; index < argc; ++index) {
@@ -57,9 +64,23 @@ std::unique_ptr<pacseek::data::PackageSource> SelectSource(bool use_mock) {
 }  // namespace
 
 int main(int argc, char** argv) {
+  if (HasFlag(argc, argv, "-V") || HasFlag(argc, argv, "--version")) {
+    std::cout << "pacseek " << PACSEEK_VERSION << "\n";
+    return EXIT_SUCCESS;
+  }
   if (HasFlag(argc, argv, "-h") || HasFlag(argc, argv, "--help")) {
     std::cout << kUsage;
     return EXIT_SUCCESS;
+  }
+
+  // Anything that isn't a known flag is an error: a mistyped `--moc` silently
+  // launching against the live system is worse than refusing to start.
+  for (int index = 1; index < argc; ++index) {
+    const std::string argument = argv[index];
+    if (argument != "--mock") {
+      std::cerr << "pacseek: unknown argument '" << argument << "'\n\n" << kUsage;
+      return EXIT_FAILURE;
+    }
   }
 
   const bool use_mock = HasFlag(argc, argv, "--mock");
@@ -79,6 +100,11 @@ int main(int argc, char** argv) {
     return EXIT_FAILURE;
   }
   pacseek::model::SetUserCollections(collections.collections);
+
+  // Fold pacman's official groups (base-devel, …) in as collections. Re-opens
+  // libalpm once, mirroring the other one-shot startup loads; under --mock the
+  // source returns none, so the picker is unchanged.
+  pacseek::model::SetGroupCollections(source->Groups());
 
   try {
     pacseek::app::App app(*source, config);

@@ -18,18 +18,39 @@ constexpr char kTemplate[] =
     "# pacseek configuration\n"
     "# Lines starting with '#' are comments. Remove the '#' to enable a setting.\n"
     "\n"
-    "# Initial view when pacseek starts: browse | installed | updates | aur | collections\n"
+    "# Initial view when pacseek starts: browse | installed | updates | aur | collections | orphans\n"
     "# view = browse\n"
     "\n"
     "# Initial sort order: size | name\n"
     "# sort = size\n"
     "\n"
-    "# Preferred AUR helper, overriding auto-detection.\n"
-    "# Auto-detected in order: paru, yay, pikaur, aura, trizen, pamac.\n"
+    "# Preferred AUR helper, overriding auto-detection. Must speak pacman syntax\n"
+    "# (-S / -Syu). Auto-detected in order: paru, yay, pikaur, trizen.\n"
     "# aur_helper = paru\n"
     "\n"
     "# Color theme: default | tokyo-night | catppuccin-mocha | catppuccin-macchiato | gruvbox\n"
-    "# theme = tokyo-night\n";
+    "# theme = tokyo-night\n"
+    "\n"
+    "# Keybindings: rebind any single-key letter/symbol action with 'key_<action> = <char>'\n"
+    "# (e.g. 'key_sort = S'). The value must be exactly one non-space character; the\n"
+    "# structural keys (enter, space, esc, arrows, digits 1-5) are fixed and not listed.\n"
+    "# Two actions bound to the same key resolve first-match-wins - your problem to avoid.\n"
+    "# key_quit = q\n"
+    "# key_detail = d\n"
+    "# key_search = /\n"
+    "# key_sort = s\n"
+    "# key_update = u\n"
+    "# key_reason = r\n"
+    "# key_filter = f\n"
+    "# key_file_lookup = o\n"
+    "# key_help = ?\n"
+    "# key_collections_back = h\n"
+    "# key_export_list = x\n"
+    "# key_import_list = i\n"
+    "# key_mark_all = a\n"
+    "# key_clean_cache = c\n"
+    "# key_pacdiff = m\n"
+    "# key_refresh = y\n";
 
 std::string Trim(const std::string& text) {
   const auto first = text.find_first_not_of(" \t\r\n");
@@ -61,6 +82,8 @@ void ApplyView(const std::string& value, Config& config) {
     config.view = model::View::Aur;
   } else if (v == "collections") {
     config.view = model::View::Collections;
+  } else if (v == "orphans") {
+    config.view = model::View::Orphans;
   }
   // Anything else: leave the default in place.
 }
@@ -72,6 +95,52 @@ void ApplySort(const std::string& value, Config& config) {
   } else if (v == "name") {
     config.sort = model::Sort::NameAscending;
   }
+}
+
+// Applies a single 'key_<action> = <char>' binding. `action` is the token after
+// 'key_' (already lowercased by the caller); `value` is the raw, case-preserved
+// value. Only a single non-space character rebinds the field - empty or
+// multi-char values are ignored, keeping the default, as lenient as the rest of
+// the parser. Unknown action tokens are ignored too.
+void ApplyKeybinding(const std::string& action, const std::string& value, Config& config) {
+  if (value.size() != 1) {
+    return;  // empty / multi-char: keep the default
+  }
+  const char key = value[0];
+  if (action == "quit") {
+    config.keys.quit = key;
+  } else if (action == "detail") {
+    config.keys.detail = key;
+  } else if (action == "search") {
+    config.keys.search = key;
+  } else if (action == "sort") {
+    config.keys.sort = key;
+  } else if (action == "update") {
+    config.keys.update = key;
+  } else if (action == "reason") {
+    config.keys.reason = key;
+  } else if (action == "filter") {
+    config.keys.filter = key;
+  } else if (action == "file_lookup") {
+    config.keys.file_lookup = key;
+  } else if (action == "help") {
+    config.keys.help = key;
+  } else if (action == "collections_back") {
+    config.keys.collections_back = key;
+  } else if (action == "export_list") {
+    config.keys.export_list = key;
+  } else if (action == "import_list") {
+    config.keys.import_list = key;
+  } else if (action == "mark_all") {
+    config.keys.mark_all = key;
+  } else if (action == "clean_cache") {
+    config.keys.clean_cache = key;
+  } else if (action == "pacdiff") {
+    config.keys.pacdiff = key;
+  } else if (action == "refresh") {
+    config.keys.refresh = key;
+  }
+  // Unknown action tokens leave every default in place.
 }
 
 // Drops the commented template at `path` if its directory can be created and no
@@ -100,6 +169,16 @@ std::string DefaultConfigPath() {
   return {};
 }
 
+std::string DefaultPackageListPath() {
+  if (const char* xdg = std::getenv("XDG_CONFIG_HOME"); xdg != nullptr && xdg[0] != '\0') {
+    return std::string(xdg) + "/pacseek/pkglist.txt";
+  }
+  if (const char* home = std::getenv("HOME"); home != nullptr && home[0] != '\0') {
+    return std::string(home) + "/.config/pacseek/pkglist.txt";
+  }
+  return {};
+}
+
 Config ParseConfig(const std::string& text) {
   Config config;
   std::istringstream stream(text);
@@ -124,6 +203,9 @@ Config ParseConfig(const std::string& text) {
       config.aur_helper = value;
     } else if (key == "theme") {
       config.theme = value;
+    } else if (key.rfind("key_", 0) == 0) {
+      // A rebindable single-key action: 'key_<action> = <char>'.
+      ApplyKeybinding(key.substr(4), value, config);
     }
     // Unknown keys are ignored so newer config files don't break older binaries.
   }

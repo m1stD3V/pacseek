@@ -1,0 +1,40 @@
+# Maintainer: m1st <your-email-here>
+
+pkgname=pacseek
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Tech-brutalist TUI package manager for pacman + AUR"
+arch=('x86_64')
+url='https://codeberg.org/m1stD3V/pacseek'
+license=('MIT')
+# libalpm ships with pacman; curl is the AUR RPC transport.
+depends=('pacman' 'curl')
+# git is needed because CMake fetches and pins FTXUI via FetchContent.
+# nlohmann-json enables the real AUR JSON parser (without it the AUR search
+# compiles to a stub), so build against it here.
+makedepends=('cmake' 'git' 'nlohmann-json')
+# Release tarball of the tag. Codeberg (Gitea) archives extract into a directory
+# named after the repository, i.e. "pacseek/", which _srcdir tracks below.
+# To pin the checksum: run `updpkgsums` in this directory (or `makepkg -g`) and
+# replace the SKIP entry with the value it prints.
+source=("$pkgname-$pkgver.tar.gz::$url/archive/v$pkgver.tar.gz")
+sha256sums=('SKIP')
+
+_srcdir="$pkgname"
+
+build() {
+  cmake -B build -S "$srcdir/$_srcdir" \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX=/usr
+  cmake --build build --parallel
+}
+
+package() {
+  # Installs the binary and the man page (both handled by the project's
+  # CMake install rules).
+  DESTDIR="$pkgdir" cmake --install build
+
+  # MIT license: pacman doesn't treat MIT as a common license, so ship a copy.
+  install -Dm644 "$srcdir/$_srcdir/LICENSE" \
+    "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}

@@ -93,7 +93,10 @@ flowchart TD
 - **`theme.hpp`** is a leaf with no dependencies. Every color, threshold, and
   dimension is a named constant here so nothing downstream hardcodes a value.
 - **`model/`** is pure logic with no I/O and no FTXUI dependency beyond the
-  `Color` type. It is the part you can unit-test without a terminal or a system.
+  `Color` type. It is the part you can unit-test without a terminal or a system -
+  and `tests/pacseek_tests.cpp` does exactly that: a framework-free CTest suite
+  over the command builders, the config/collections parsers, and the catalog,
+  run in CI (`.woodpecker.yml`) on every push.
 - **`data/`** turns a source of truth (libalpm, or the mock table) into
   `model::Package` values, behind the `PackageSource` interface.
 - **`ui/`** is a set of pure functions from application state to FTXUI `Element`

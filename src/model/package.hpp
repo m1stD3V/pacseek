@@ -24,6 +24,17 @@ struct Package {
   int64_t download_size_bytes = 0;  // compressed download size
   bool installed = false;
   bool has_update = false;
+  // The next two are meaningful only when `installed`; a sync-only package
+  // leaves both false.
+  bool explicit_install = false;  // installed with reason EXPLICIT (vs. a dep)
+  bool is_orphan = false;         // a dependency nothing needs - `pacman -Qdt`
+
+  // AUR trust signals, filled only on live RPC search results (local rows keep
+  // the sentinels). Votes render in place of the meaningless 0-byte size, and
+  // the out-of-date flag gets its own row badge.
+  int aur_votes = -1;             // NumVotes; -1 = not a live AUR result
+  double aur_popularity = -1.0;   // Popularity; drives the default result order
+  bool aur_out_of_date = false;   // maintainer-flagged out-of-date
 };
 
 // Repo <-> presentation helpers.

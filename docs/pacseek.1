@@ -1,0 +1,125 @@
+.TH PACSEEK 1 "July 2026" "pacseek 0.1.0" "User Commands"
+.SH NAME
+pacseek \- tech-brutalist TUI package manager for pacman + AUR
+.SH SYNOPSIS
+.B pacseek
+.RI [ options ]
+.SH DESCRIPTION
+.B pacseek
+is a terminal user interface for browsing and managing packages on Arch-based
+systems. It reads live package data through libalpm, searches the AUR over the
+RPC interface, and groups packages into curated and user-defined collections.
+.PP
+Browsing and searching are read-only. When you apply a batch of marked packages
+pacseek leaves the alternate screen and hands off to
+.BR pacman (8)
+to perform the actual install or removal, then returns to the interface with the
+catalog reloaded.
+.SH OPTIONS
+.TP
+.B \-\-mock
+Use the built-in prototype dataset instead of the live system. Useful for trying
+the interface without touching libalpm or the network.
+.TP
+.BR \-V ", " \-\-version
+Print the version and exit.
+.TP
+.BR \-h ", " \-\-help
+Print a short usage summary and exit.
+.SH KEYS
+.TP
+.B 1\-6
+Switch between the views (Browse, Installed, Updates, AUR, Collections, Orphans).
+.TP
+.B /
+Focus the search box.
+.TP
+.B j / k
+Move the selection down / up (arrow keys work too).
+.TP
+.B s
+Cycle the sort order.
+.TP
+.B f
+Cycle the repository filter.
+.TP
+.B d
+Open or close the detail pane for the selected package. Inside the pane,
+.B tab
+cycles the dependency/provides links,
+.B enter
+opens the highlighted link's package, and
+.B backspace
+walks back along the trail.
+.TP
+.B o
+Look up which package owns a file.
+.TP
+.B r
+Toggle the install reason (explicit / dependency) for a package.
+.TP
+.B u
+Update: queue a full system upgrade.
+.TP
+.B y
+Refresh the sync databases (pacman \-Sy) and reload, so the Updates view
+reflects upstream. pacseek never refreshes them on its own, so the update
+counts are otherwise only as fresh as the last \-Sy.
+.TP
+.B space
+Mark or unmark the selected package for the next batch.
+.TP
+.B a
+Mark every visible package, or clear the marks when all are already marked.
+.TP
+.B c
+Clean the pacman package cache via
+.BR paccache (8)
+(needs pacman-contrib).
+.TP
+.B m
+Merge unmerged .pacnew / .pacsave files via
+.BR pacdiff (8)
+(needs pacman-contrib).
+.TP
+.B enter
+Apply the marked batch, or confirm a pending action. In the collections picker,
+open the highlighted collection.
+.TP
+.B h
+Back out of an open collection to the collections picker.
+.TP
+.B x
+Export the current package list to disk.
+.TP
+.B i
+Import a package list from disk.
+.TP
+.B ?
+Show the controls popout.
+.TP
+.BR q ", " esc
+Quit, or dismiss the current popout.
+.PP
+The mouse also works: the wheel scrolls the list or an open detail pane,
+clicking a row selects it, and clicking a sidebar entry switches views.
+.SH FILES
+.TP
+.I ~/.config/pacseek/config.ini
+User configuration: theme and key rebindings.
+.TP
+.I ~/.config/pacseek/collections.ini
+User-defined package collections, merged in after the built-ins.
+.TP
+.I ~/.config/pacseek/pkglist.txt
+Default target for the export and import commands.
+.PP
+The
+.B $XDG_CONFIG_HOME
+environment variable, when set, replaces
+.I ~/.config
+in the paths above.
+.SH SEE ALSO
+.BR pacman (8),
+.BR pacdiff (8),
+.BR paru (8)

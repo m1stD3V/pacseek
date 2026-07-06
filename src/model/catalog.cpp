@@ -29,6 +29,9 @@ bool MatchesView(const Package& package, View view) {
       // Collections never filter through the view predicate; they go through
       // VisibleInSet. Listing the case keeps the switch exhaustive.
       return false;
+    case View::Orphans:
+      // Installed dependencies nothing needs (`pacman -Qdt`) - the reclaim view.
+      return package.installed && package.is_orphan;
   }
   return false;
 }
@@ -61,11 +64,11 @@ std::vector<const Package*> Catalog::Visible(View view, const std::string& query
   }
 
   if (sort == Sort::SizeDescending) {
-    std::sort(visible.begin(), visible.end(), [](const Package* a, const Package* b) {
+    std::stable_sort(visible.begin(), visible.end(), [](const Package* a, const Package* b) {
       return a->install_size_bytes > b->install_size_bytes;
     });
   } else {
-    std::sort(visible.begin(), visible.end(),
+    std::stable_sort(visible.begin(), visible.end(),
               [](const Package* a, const Package* b) { return a->name < b->name; });
   }
   return visible;
@@ -84,11 +87,11 @@ std::vector<const Package*> Catalog::VisibleInSet(const std::vector<std::string>
   }
 
   if (sort == Sort::SizeDescending) {
-    std::sort(visible.begin(), visible.end(), [](const Package* a, const Package* b) {
+    std::stable_sort(visible.begin(), visible.end(), [](const Package* a, const Package* b) {
       return a->install_size_bytes > b->install_size_bytes;
     });
   } else {
-    std::sort(visible.begin(), visible.end(),
+    std::stable_sort(visible.begin(), visible.end(),
               [](const Package* a, const Package* b) { return a->name < b->name; });
   }
   return visible;
@@ -113,6 +116,16 @@ int Catalog::CountForView(View view) const {
   int count = 0;
   for (const Package& package : packages_) {
     if (MatchesView(package, view)) {
+      ++count;
+    }
+  }
+  return count;
+}
+
+int Catalog::PacmanUpdateCount() const {
+  int count = 0;
+  for (const Package& package : packages_) {
+    if (package.has_update && package.repo != Repo::Flatpak) {
       ++count;
     }
   }
@@ -167,6 +180,26 @@ std::vector<RepoFootprint> Catalog::InstalledFootprintByRepo() const {
     }
   }
   return footprints;
+}
+
+int Catalog::OrphanCount() const {
+  int count = 0;
+  for (const Package& package : packages_) {
+    if (package.installed && package.is_orphan) {
+      ++count;
+    }
+  }
+  return count;
+}
+
+int64_t Catalog::ReclaimableBytes() const {
+  int64_t total = 0;
+  for (const Package& package : packages_) {
+    if (package.installed && package.is_orphan) {
+      total += package.install_size_bytes;
+    }
+  }
+  return total;
 }
 
 }  // namespace pacseek::model

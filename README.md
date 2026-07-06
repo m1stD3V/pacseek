@@ -79,7 +79,18 @@ detected helper (`paru`, `yay`, `pikaur`, …), and **flatpak** apps through the
 flatpak CLI when it is installed. The `--mock` dataset stays read-only and just
 shows what it would do. In the **AUR** view, pressing `enter` in the search box
 runs a **live AUR RPC search**, and `space`/`enter` mark and apply batches across
-multiple packages. See [Roadmap](#roadmap).
+multiple packages.
+
+**Feature-complete for 1.0.** The whole roadmap is now built: orphan detection
+with reclaimable space, install-reason flipping, transaction previews (a
+partial-upgrade guard, per-install marginal disk cost, and a removal cascade
+preview), a file → package lookup, official pacman groups in Collections, a repo
+filter, an unmerged-config (`.pacnew`) indicator, portable explicit-package
+export/import, rebindable keys, and a `--version` flag plus a `pacseek.1` man
+page - and, on top of that: AUR trust signals (votes, popularity, maintainer,
+out-of-date flags), an honest sync-age footer, flatpak update detection, a
+navigable detail pane, mouse support, cache cleaning and `pacdiff` launching, a
+mark-all key, and a CTest suite with Woodpecker CI. See [Roadmap](#roadmap).
 
 ---
 
@@ -92,7 +103,7 @@ multiple packages. See [Roadmap](#roadmap).
 | C++17 compiler | GCC or Clang |
 | CMake ≥ 3.20 | build system |
 | `libalpm` | pacman's library, present on every Arch system |
-| `libcurl` | for forthcoming AUR networking |
+| `libcurl` | live AUR RPC search |
 | `nlohmann-json` | optional; auto-detected |
 | FTXUI | **fetched and pinned automatically** by CMake (v6.1.9) |
 
@@ -114,6 +125,18 @@ line to add for your shell. It's the manual steps below, wrapped and checked.
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j
 ```
+
+### Tests
+
+```sh
+ctest --test-dir build --output-on-failure
+```
+
+A framework-free suite over the pure layers - the transaction command builders
+(including the injection-rejection paths), the config and collections parsers,
+and the catalog filtering/sorting. The same suite runs in CI
+([`.woodpecker.yml`](.woodpecker.yml)) on every push. Pass `-DBUILD_TESTING=OFF`
+at configure time to skip building it.
 
 ### Run
 
@@ -141,24 +164,40 @@ This drops the binary at `~/.local/bin/pacseek`. If `~/.local/bin` is on your
 
 | Key | Action |
 |-----|--------|
-| `1` – `5` | switch view: Browse / Installed / Updates / AUR / Collections |
+| `1` – `6` | switch view: Browse / Installed / Updates / AUR / Collections / Orphans |
 | `/` | focus search (`Esc` or `Enter` to leave) |
 | `enter` (in search, AUR view) | run a live AUR RPC search for the typed term |
 | `enter` (Collections picker) | open the highlighted collection |
 | `esc` / `h` / `←` (in a collection) | back out to the collections picker |
 | `j` / `k` | move selection (also `↓` / `↑`) |
 | `s` | toggle sort: size ↓ / name ↓ |
+| `f` | cycle the repo filter (core / extra / multilib / aur / flatpak / off) |
 | `u` | update: full system upgrade (`-Syu`) |
+| `y` | refresh the sync databases (`-Sy`) so the update counts are current |
 | `d` | open the detail pane for the selected package (`d` / `esc` / `q` to close) |
+| `tab` (in detail) | cycle through the pane's package links (dependencies, provides, …) |
+| `enter` (in detail) | jump to the highlighted link's own detail pane |
+| `backspace` / `←` (in detail) | walk back along the link trail |
+| `o` | file → package lookup: which package owns a file or command |
+| `r` | flip the selected installed package's install reason (explicit ↔ dependency) |
+| `x` / `i` | export / import the explicit package list (`~/.config/pacseek/pkglist.txt`) |
 | `space` | mark / unmark the selected package for a batch (auto-advances) |
-| `enter` | apply the marked batch, or act on the selection if nothing is marked |
+| `a` | mark every visible package (press again to clear them all) |
+| `c` | clean the package cache (`paccache -r`, from pacman-contrib) |
+| `m` | merge unmerged `.pacnew` / `.pacsave` configs (`pacdiff`) |
+| `enter` | apply the marked batch, act on the selection, or confirm a pending prompt |
 | `?` | open the controls popout (every binding); `?` / `esc` / `q` to close |
-| `q` / `esc` | quit |
+| `q` / `esc` | quit (or cancel a confirmation / close a popout) |
 
 The footer carries a single `? controls` legend rather than a wall of keys; press
 `?` for the full popout, which floats over a dimmed background so it reads as a
 focused dialog. In the detail pane, `j` / `k` (or `↓` / `↑`) scroll through the
-dependencies and file list.
+dependencies and file list. Every letter binding above is rebindable from the
+config file (see [Configuration](#configuration)), and the popout reflects your
+own keys.
+
+The **mouse** works too: the wheel scrolls the list (or an open detail pane),
+clicking a row selects it, and clicking a sidebar entry switches views.
 
 ### Views
 
@@ -173,7 +212,10 @@ dependencies and file list.
   The search is deliberately gentle on the AUR: it fires only on `enter` (never
   per keystroke), needs at least two characters, collapses repeat Enter-presses
   while a request is in flight, and memoizes each term for the session so the same
-  query is never fetched twice.
+  query is never fetched twice. Results carry the AUR's **trust signals**: they
+  arrive sorted by popularity (then votes), the vote count fills the size column
+  (`▲ 1227` - an un-built package has no meaningful size anyway), and packages
+  flagged **out-of-date** upstream wear a badge in the list.
 - **Collections**: hand-curated package bundles grouped by use case - **Gaming**,
   **Creative Work**, **Development**, **Multimedia**, and **System & Terminal**. A
   two-level browse: the picker lists each collection with how many of its members
@@ -184,10 +226,21 @@ dependencies and file list.
   usual set for X". Members live in the curated list, not the network: each name is
   resolved against the local databases, so collections never reach out to the AUR
   (members that aren't in the sync repos simply show as unavailable until installed).
+  The **official pacman groups** (`base-devel`, …) that libalpm exposes are folded
+  in after the curated and user-defined sets, so a group browses and installs
+  through the same machinery.
+- **Orphans**: installed packages that were pulled in as dependencies but nothing
+  needs any more (`pacman -Qdt`) - the safe-to-remove pile. The nav count glows
+  when any exist, and the footer shows the total space you'd reclaim by removing
+  them. Work it like any other view: `space` to mark the ones to drop, `enter` to
+  remove the batch. A quick way to actually free the space the footprint card's
+  "reclaimable" line has been telling you about.
 
 Search filters the active view by a case-insensitive match over package **name and
 description** (within a collection it narrows that collection's members). The nav
-counts always reflect the whole dataset, independent of the current search.
+counts always reflect the whole dataset, independent of the current search. Press
+`f` to cycle a **repo filter** (core / extra / multilib / aur / flatpak) that
+narrows the list to a single source on top of whatever view and search are active.
 
 ### The detail pane
 
@@ -196,10 +249,16 @@ that one package, loaded on demand from libalpm (file lists are too large to car
 for every row up front):
 
 - **Provenance**: repository, installed size, licenses, upstream URL, packager,
-  build date, and - for installed packages - the install date and whether it was
-  installed explicitly or as a dependency.
-- **Dependencies**: the package's hard dependencies and optional dependencies, and
-  (for installed packages) what currently **requires** it.
+  build date, and - for installed packages - the install date, whether it was
+  installed explicitly or as a dependency, and a **why installed** line that
+  traces the shortest chain from an explicitly-installed root down to it
+  (`gnome → gvfs`) for packages pulled in indirectly.
+- **Install cost** (for a not-installed package): the true disk cost of adding it -
+  how many dependencies aren't already present and the total install size,
+  resolved over the sync databases.
+- **Dependencies**: the package's hard and optional dependencies, what it
+  **provides**, **conflicts** with, or **replaces**, and (for installed packages)
+  what currently **requires** it.
 - **Files**: the absolute paths the package owns. Available only once installed;
   for an available-but-not-installed package the pane says so. Very large file
   lists are truncated with a summary line.
@@ -207,6 +266,19 @@ for every row up front):
 The package name stays pinned at the top while the body scrolls with `j` / `k`.
 For an un-built AUR search result there is no database entry yet, so the pane shows
 the search fields and notes that the rest appears after installation.
+
+The relationship bullets are **navigable links**: `tab` cycles a `▸` cursor
+through the dependencies, provides, conflicts, replaces, and required-by entries,
+`enter` opens the highlighted package's own detail pane, and `backspace` (or `←`)
+walks the trail back the way you came - so "what actually is this dependency?"
+is answered without leaving the pane.
+
+For AUR packages the pane also carries an **AUR trust section**, fetched in the
+background over the same RPC interface while the local fields render instantly:
+votes, popularity, the maintainer (with an explicit *orphaned* warning when there
+is none), the last-updated date, and a highlighted **flagged out-of-date** warning
+with the flag date when upstream has marked the package stale. Answers are cached
+for the session; network errors are not, so reopening retries.
 
 ### Reading the storage impact
 
@@ -226,6 +298,7 @@ Pinned to the foot of the sidebar:
   24.56 GiB / 852.86 GiB        installed total / total drive capacity
   ██████░░░░░░░░░░░░░░░░         repo breakdown: CORE · EXTRA · AUR · MULTILIB
   1365 packages · 2.9% of disk   share of the whole filesystem
+  cache 4.41 GiB · c to clean    pacman package cache, reclaimable with paccache
 ```
 
 Drive capacity is measured once at startup from the root filesystem. The segmented
@@ -249,12 +322,59 @@ terminal so you can see and confirm everything, then reloads and resumes:
 
 Under `--mock`, `enter` only reports what it *would* do - nothing touches the system.
 
+### Previews and safety prompts
+
+Before a transaction commits, PacSeek surfaces what the raw command won't:
+
+- **Partial-upgrade guard.** Installing while updates are pending (a `-S` without
+  `-Syu`, which risks a partial-upgrade breakage) opens a confirmation first -
+  `enter` to proceed anyway, `u` to run the full upgrade instead, `esc` to cancel.
+- **Removal cascade preview.** Removing a single package first shows everything
+  `-Rs` will also drag out and the space it reclaims, so there are no surprises at
+  pacman's own confirm screen.
+
+Both use the same in-TUI prompt; it appears only when there is something to warn
+about, and otherwise the action applies straight through.
+
+### Keeping the system healthy
+
+- **Orphans and reclaimable space.** Packages installed as dependencies that
+  nothing needs anymore (the `pacman -Qdt` set) carry an `ORPHAN` badge, and the
+  disk-footprint card gains a "reclaim" line totalling what removing them frees.
+  Mark them with `space` and remove the batch to act on it.
+- **Fix install reasons.** Press `r` to flip the selected installed package
+  between *explicit* and *dependency* (`pacman -D`) - the correction that keeps the
+  orphan set trustworthy.
+- **Unmerged configs.** A bounded scan of `/etc` at startup counts `.pacnew` /
+  `.pacsave` files left after updates; when any exist the footer shows a count, so
+  they aren't silently forgotten - and `m` launches `pacdiff` right there to merge
+  them (the key declines with a notice when there's nothing to merge).
+- **Sync-database age.** The footer's `● SYNCED` chip is honest: it shows how long
+  ago the sync databases were last refreshed (`SYNCED 6h AGO`), and past a week it
+  turns amber - so "0 updates" is never mistaken for "up to date" on a system that
+  simply hasn't run `-Sy` lately. An empty Updates view says the same thing in
+  place (`databases synced 23h ago · y re-checks`), and `y` runs `sudo pacman -Sy`
+  through the usual terminal handoff, reloading the catalog on return so the
+  Updates tab reflects upstream again - no dropping to a shell just to find out
+  what's pending. The refresh is only ever user-initiated, and the
+  partial-upgrade guard already covers the classic refresh-then-install hazard.
+- **Package-cache reclaim.** The disk-footprint card shows the size of
+  `/var/cache/pacman/pkg`, and `c` runs `paccache -r` (keep the 3 newest versions
+  of each package) behind the same confirmation prompt as any transaction. Both
+  maintenance keys need `pacman-contrib` installed and say so when it isn't.
+- **File → package lookup.** Press `o`, type a path or command, and PacSeek names
+  the package that owns it - scanning your installed files first, then the sync
+  files database when it is present (it never runs `-Fy`; it hints to when absent).
+
 ### Multi-select (mass install / removal)
 
 Press `space` to **mark** the selected package (a `✓` appears and the selection
-auto-advances, so marking a run is one repeated keystroke). Marks are kept by name,
-so they persist as you change views, search, and sort. The footer shows a live
-`N marked · enter to apply` prompt.
+auto-advances, so marking a run is one repeated keystroke), or `a` to mark
+**everything currently visible** in one stroke - filter to the Orphans view and
+`a` + `enter` is "remove all orphans". When every visible row is already marked,
+`a` clears them instead. Marks are kept by name, so they persist as you change
+views, search, and sort. The footer shows a live `N marked · enter to apply`
+prompt.
 
 Press `enter` to apply the whole marked set as a **single batch**:
 
@@ -272,11 +392,16 @@ With nothing marked, `enter` falls back to acting on the single selected row.
 Beyond pacman repositories and the AUR, PacSeek also surfaces **flatpak**
 applications when the `flatpak` CLI is installed: installed apps appear in the
 catalog tagged `FLATPAK` (a blue badge and its own legend / footprint segment),
-and `enter` removes them via `flatpak uninstall`. Remote (flathub) search is a
-later milestone, so for now every flatpak row is one you already have.
+and `enter` removes them via `flatpak uninstall`. Flatpak **updates** are detected
+too - from flatpak's own cached remote summaries (`remote-ls --cached`), so no
+network request is made - and show up in the Updates view; when any are pending,
+the `u` system upgrade chains `flatpak update` after `pacman -Syu`. Stale
+flatpaks never trigger the partial-upgrade guard, which only counts pacman
+updates. Remote (flathub) search is a later milestone, so for now every flatpak
+row is one you already have.
 
 AUR transactions run through the first helper found on `PATH`, probed in order:
-`paru`, `yay`, `pikaur`, `aura`, `trizen`, `pamac` (override with `aur_helper` in
+`paru`, `yay`, `pikaur`, `trizen` (override with `aur_helper` in
 the config). A batch (multi-select) is one manager at a time - pacman/AUR can mix,
 but flatpak applies separately.
 
@@ -300,12 +425,15 @@ view = browse
 # Initial sort order: size | name
 sort = size
 
-# Preferred AUR helper, overriding auto-detection: paru | yay
-# Leave unset to auto-detect (paru, then yay).
+# Preferred AUR helper, overriding auto-detection. Must speak pacman syntax
+# (-S / -Syu). Leave unset to auto-detect in order: paru, yay, pikaur, trizen.
 aur_helper = paru
 
 # Color theme: default | tokyo-night | catppuccin-mocha | catppuccin-macchiato | gruvbox
 theme = tokyo-night
+
+# Rebind any letter action with key_<action> = <char> (see below).
+# key_sort = S
 ```
 
 | Key | Values | Effect |
@@ -314,6 +442,35 @@ theme = tokyo-night
 | `sort` | `size` · `name` | the initial sort order |
 | `aur_helper` | `paru` · `yay` · `pikaur` · … | forces the helper instead of probing `PATH` |
 | `theme` | `default` · `tokyo-night` · `catppuccin-mocha` · `catppuccin-macchiato` · `gruvbox` | the color palette (names are case-insensitive; spaces/underscores ok) |
+| `key_<action>` | a single character | rebinds a letter action (see below) |
+
+### Custom keybindings
+
+Every single-letter action is rebindable with a `key_<action> = <char>` line, so
+your muscle memory travels with your config folder. The structural keys - `enter`,
+`space`, `esc`, the arrows, and the `1`–`5` view numbers - stay fixed; only the
+letter/symbol actions rebind. Unset actions keep their defaults, and an empty or
+multi-character value is ignored. The controls popout (`?`) always reflects the
+keys actually in effect.
+
+```ini
+# Defaults shown; uncomment and change a value to rebind.
+# key_quit = q          key_detail = d         key_search = /
+# key_sort = s          key_update = u         key_reason = r
+# key_filter = f        key_file_lookup = o    key_help = ?
+# key_collections_back = h
+# key_export_list = x   key_import_list = i
+# key_mark_all = a      key_clean_cache = c    key_pacdiff = m
+# key_refresh = y
+```
+
+### Portable package list
+
+`x` exports the explicit-install set (`pacman -Qqe`) to
+`~/.config/pacseek/pkglist.txt`, one name per line; `i` reads it back and installs
+whatever is missing (through the AUR helper when one is present, so repo and AUR
+names restore together). Back up the config folder and a fresh machine rehydrates
+with a single keystroke - the whole-system sibling of user-defined collections.
 
 ### User-defined collections
 
@@ -518,31 +675,41 @@ hardcodes a hex. Thresholds and dimensions live alongside the palette in
 - [x] Per-package detail pane (dependencies, files, provenance)
 - [x] Multi-select for install/remove transactions for mass install or removal
 - [x] Configuration file at `~/.config/pacseek/config.ini` (initial view / sort, AUR helper override; theme + package-manager keys to follow)
-- [x] Support other package managers: flatpak backend (list / install / remove) and broader AUR-helper detection (paru, yay, pikaur, aura, trizen, pamac)
+- [x] Support other package managers: flatpak backend (list / install / remove) and broader AUR-helper detection (paru, yay, pikaur, trizen - helpers that speak pacman's -S/-Syu syntax)
 - [x] Theme support: default (brutalist), tokyo-night, catppuccin-mocha, catppuccin-macchiato, gruvbox
 - [x] Curated package collections by use case (gaming, creative work, development, multimedia, system/terminal)
 - [x] Allow for user defined collections in a sibling file `collections.ini` in the pacseek config folder, so backing up your config carries your own collections to a fresh installation. Malformed collections (missing name, empty package entry, duplicate id, bad syntax) are a hard error that names the offending collection and halts loading, so mistakes are never silent. Packages that don't resolve against the local databases aren't fatal - they render as "unavailable" exactly like built-in AUR entries, keeping the offender visible without a startup network hit or false-positive rejection of valid AUR names.
 - [x] installation script (`install.sh`) that prioritizes functionality, but has a branded output nothing too elaborate function over form.
-Each item below answers: does it help someone browse, understand storage impact,
+Each item here answered: does it help someone browse, understand storage impact,
 transact safely, keep their system healthy, or move their setup - and does
 pacseek do it meaningfully better than the one-line command? If not, it belongs
-to the CLI, not here (see _Considered and declined_).
+to the CLI, not here (see _Considered and declined_). Everything that cleared
+that bar is now built:
 
-- [ ] Partial-upgrade guard. Warn before installing a lone package while system updates are pending (`-S` without `-Syu` risks a partial-upgrade breakage). pacseek already detects updates, so the check is cheap and purely local - a real correctness guard for a hazard the raw command doesn't flag.
-- [ ] Orphan / unneeded-package detection with reclaimable space. Surface packages installed as dependencies that nothing needs anymore (the `pacman -Qdt` set), computed locally via libalpm with no network. Show the count and reclaimable size - e.g. a footprint-card line or dedicated view - turning the storage-first framing from descriptive into actionable ("reclaim 2.3 GiB").
-- [ ] Change a package's install reason (`pacman -D --asdeps` / `--asexplicit`). The detail pane already shows the reason; this adds the missing verb to correct it - which is what makes orphan detection trustworthy, since orphans are only right when install reasons are. Small and local; build alongside orphan detection.
-- [ ] Marginal install cost. When previewing an install, show the size of the dependencies that aren't already present, not just the package's own size - the true disk cost of adding it ("gimp · 45 MiB, +6 new deps → 340 MiB total"). Local via libalpm dep resolution; insight the CLI doesn't give and the sharpest expression of the storage-first identity.
-- [ ] File → package ownership lookup (`pacman -F` / `-Qo`). Answer "which package owns/provides this file or command?" - the one _find_ question name/description search can't. Reads the files database only if it is already present locally; never triggers the `-Fy` sync (read-local-DBs-only), showing a one-line "run `pacman -Fy` to enable" hint when the DB is absent.
-- [ ] Export / import of the explicit package list (the `pacman -Qqe` set) to a restorable file, and back. The whole-system sibling of user-defined collections: back up your setup and rehydrate it on a fresh install. Fully local.
-- [ ] Removal cascade preview - scoped small. Show what a removal drags out or leaves orphaned _before_ committing, inside the TUI. `pacman`'s own confirm screen already lists removals, so this earns its place only by appearing at decision time, not as a separate view.
-- [ ] Reverse-dependency "why is this installed?" as a line _in the existing detail pane_ - trace the chain that pulled a package in ("via gnome → gvfs → this") via libalpm reverse-deps. Companion to orphan detection; folded into the detail pane, not a new view.
-- [ ] Conflicts / replaces / provides in the detail pane. The pane shows what a package needs and who needs it, but not what it clashes with - the field people still open `pacman -Qi` for before an install. Cheap fields on an existing struct that complete the _evaluate_ job.
-- [ ] Official package groups, folded into existing browse/collections - let the pacman groups libalpm already exposes (`base-devel`, etc.) be browsable/installable through the current machinery rather than a parallel system.
-- [ ] `.pacnew` / `.pacsave` flag - a small indicator/count of config files left unmerged after updates, so they aren't silently forgotten. Local filesystem scan; surfaces the problem and defers the actual merge to `pacdiff`, doesn't reimplement it.
-- [ ] Repo filter in browse (core / extra / multilib / aur / flatpak) - filter the list by source, finishing the navigation the sidebar repo legend already implies. Low priority; only if it feels missing in use.
-- [ ] Configurable keybindings in the config file - let users rebind keys, extending the "back up your config, carry it anywhere" story to muscle memory. (Split from the declined user-defined-themes idea; only the utilitarian half.)
-- [ ] Release completeness for a real 1.0: a `--version` flag, a `pacseek.1` man page, and graceful AUR-unreachable / offline states so a dropped network reads as a clear message, not a crash. The non-feature layer that makes it trustworthy finished software - and the man page feeds the AUR package below.
-- [ ] create an AUR package build to be deployed to the AUR (long term, but would be nice)
+- [x] Partial-upgrade guard. Warns before installing while system updates are pending (`-S` without `-Syu` risks a partial-upgrade breakage), via a confirmation prompt reusing the already-detected update count. Purely local - a real correctness guard for a hazard the raw command doesn't flag.
+- [x] Orphan / unneeded-package detection with reclaimable space. Surfaces the `pacman -Qdt` set (dependencies nothing needs, required or optionally) computed locally via libalpm: a per-row `ORPHAN` badge plus a footprint-card "reclaim" line, turning the storage-first framing from descriptive into actionable.
+- [x] Change a package's install reason (`pacman -D --asdeps` / `--asexplicit`). The `r` key flips the selected installed package's reason, the missing verb that makes orphan detection trustworthy.
+- [x] Marginal install cost. The detail pane of a not-installed package shows its true disk cost - the count and size of dependencies not already present, resolved over the sync databases ("+6 new deps → 340 MiB total").
+- [x] File → package ownership lookup (`pacman -F` / `-Qo`). The `o` key opens a lookup that answers "which package owns/provides this file or command?" - scanning local filelists first, then the sync files database only when it is already present, with a "run `pacman -Fy` to enable" hint when it isn't. Never triggers the `-Fy` sync.
+- [x] Export / import of the explicit package list (the `pacman -Qqe` set). `x` writes it to `~/.config/pacseek/pkglist.txt`; `i` installs whatever is missing. The whole-system sibling of user-defined collections. Fully local.
+- [x] Removal cascade preview. A single-package removal shows what `-Rs` will also drag out, and the space it reclaims, in the TUI at decision time before committing.
+- [x] Reverse-dependency "why is this installed?" - a line in the detail pane tracing the shortest chain from an explicitly-installed root down to the package ("gnome → gvfs"), via libalpm reverse-deps.
+- [x] Conflicts / replaces / provides in the detail pane, the fields people still open `pacman -Qi` for before an install.
+- [x] Official package groups, folded into Collections - the pacman groups libalpm exposes (`base-devel`, etc.) browse and install through the existing collection machinery.
+- [x] `.pacnew` / `.pacsave` indicator - a footer count of config files left unmerged after updates (a bounded `/etc` scan), surfacing the problem and deferring the merge to `pacdiff`.
+- [x] Repo filter in browse (core / extra / multilib / aur / flatpak) - the `f` key cycles a source filter, finishing the navigation the sidebar repo legend implies.
+- [x] Configurable keybindings in the config file - rebind the letter actions via `key_<action>` entries, extending "back up your config, carry it anywhere" to muscle memory.
+- [x] Release completeness: a `--version` / `-V` flag, a `pacseek.1` man page, and a clear "AUR unreachable" message when the network drops instead of a raw error.
+- [x] AUR package build - a `PKGBUILD` and `.SRCINFO` live in [`packaging/`](packaging/), ready for AUR submission once a release tag is pushed.
+- [x] AUR trust signals - search results sorted by popularity with vote counts in the list, and a detail-pane section (votes, popularity, maintainer / orphan warning, last-updated, out-of-date flag) fetched asynchronously over the same RPC interface.
+- [x] Honest sync indicator - the footer shows the age of the last database refresh and turns amber past a week, so "0 updates" can't masquerade as "up to date".
+- [x] In-TUI database refresh (`y`) - runs `sudo pacman -Sy` through the terminal handoff and reloads, so finding out what's actually pending never requires a shell; the empty Updates view names the databases' age and points at the key.
+- [x] Flatpak update detection from flatpak's cached remote summaries (no network hit), with `u` chaining `flatpak update` when flatpak updates are pending.
+- [x] Navigable detail pane - `tab` cycles the dependency/provides/conflicts links, `enter` drills into them, `backspace` walks back.
+- [x] Mouse support - wheel scrolling, click-to-select, and sidebar view switching.
+- [x] Cache maintenance - the footprint card shows the pacman package-cache size and `c` reclaims it via `paccache -r`; `m` launches `pacdiff` when unmerged configs exist.
+- [x] Mark-all (`a`) - one keystroke to mark everything visible, making "remove all orphans" a two-key operation.
+- [x] Tests and CI - a framework-free CTest suite over the pure layers (command builders, config/collections parsers, catalog) and a Woodpecker pipeline that builds and runs it on every push.
 
 ### Considered and declined
 

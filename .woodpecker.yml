@@ -1,0 +1,13 @@
+# Codeberg CI (Woodpecker). Builds on Arch because pacseek links libalpm,
+# which only ships there; the FTXUI pin is fetched by CMake itself.
+when:
+  - event: [push, pull_request, tag]
+
+steps:
+  build-and-test:
+    image: archlinux:latest
+    commands:
+      - pacman -Syu --noconfirm --needed base-devel cmake git nlohmann-json
+      - cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
+      - cmake --build build -j$(nproc)
+      - ctest --test-dir build --output-on-failure

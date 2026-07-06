@@ -25,16 +25,24 @@ struct Collection {
 // of the program.
 const std::vector<Collection>& BuiltinCollections();
 
-// The active collection set shown in the UI: the built-ins followed by any
-// user-defined collections merged in at startup. Same lifetime guarantee as
-// BuiltinCollections() - callers may hold pointers for the life of the program.
-// Until SetUserCollections() runs it is exactly BuiltinCollections(). This layer
-// still performs no I/O; parsing the user file lives in the config layer.
+// The active collection set shown in the UI: the built-ins, then any user-defined
+// collections, then the package groups discovered from the sources - in that
+// order. Same lifetime guarantee as BuiltinCollections() - callers may hold
+// pointers for the life of the program. Until the setters run it is exactly
+// BuiltinCollections(). This layer still performs no I/O; parsing the user file
+// and gathering groups both live outside it.
 const std::vector<Collection>& Collections();
 
-// Rebuilds the active set as the built-ins followed by `user`, in order. Call
-// once at startup, before anything reads Collections(), because it reallocates
-// the backing store and would invalidate previously handed-out pointers.
+// Replaces the user-defined slice and rebuilds the active set as built-ins +
+// user + groups. Call once at startup, before anything reads Collections(),
+// because it reallocates the backing store and would invalidate previously
+// handed-out pointers. Leaves the group slice (SetGroupCollections) untouched.
 void SetUserCollections(std::vector<Collection> user);
+
+// Replaces the group slice (pacman's official groups, folded in as collections)
+// and rebuilds the active set as built-ins + user + groups. Same one-time,
+// pointer-invalidating lifetime note as SetUserCollections(); calling one never
+// clobbers the other's slice.
+void SetGroupCollections(std::vector<Collection> groups);
 
 }  // namespace pacseek::model

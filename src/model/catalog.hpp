@@ -16,7 +16,7 @@ namespace pacseek::model {
 // Collections is special: it is not a per-package predicate but a picker over
 // curated name sets (see model/collection.hpp), so it filters via VisibleInSet
 // rather than the view machinery.
-enum class View { Browse, Installed, Updates, Aur, Collections };
+enum class View { Browse, Installed, Updates, Aur, Collections, Orphans };
 
 // Row ordering toggled by the SORT control.
 enum class Sort { SizeDescending, NameAscending };
@@ -58,6 +58,11 @@ class Catalog {
   // Nav counts reflect the whole dataset, independent of the active search.
   int CountForView(View view) const;
 
+  // Pending updates for pacman-managed packages only (flatpak excluded). This is
+  // the count the partial-upgrade guard cares about: installing with -S while
+  // *pacman* updates wait risks breakage, whereas a stale flatpak does not.
+  int PacmanUpdateCount() const;
+
   // Installed-package count for one repo (the REPOSITORIES legend).
   int InstalledCountForRepo(Repo repo) const;
 
@@ -69,6 +74,12 @@ class Catalog {
   int64_t TotalInstalledBytes() const;
   int InstalledCount() const;
   std::vector<RepoFootprint> InstalledFootprintByRepo() const;
+
+  // Orphans: installed dependencies nothing needs (`pacman -Qdt`). OrphanCount
+  // drives the footprint-card reclaim line; ReclaimableBytes sums their on-disk
+  // footprint - the space freed by removing them.
+  int OrphanCount() const;
+  int64_t ReclaimableBytes() const;
 
  private:
   std::vector<Package> packages_;

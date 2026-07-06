@@ -1,0 +1,16 @@
+pkgbase = pacseek
+	pkgdesc = Tech-brutalist TUI package manager for pacman + AUR
+	pkgver = 0.1.0
+	pkgrel = 1
+	url = https://codeberg.org/m1stD3V/pacseek
+	arch = x86_64
+	license = MIT
+	makedepends = cmake
+	makedepends = git
+	makedepends = nlohmann-json
+	depends = pacman
+	depends = curl
+	source = pacseek-0.1.0.tar.gz::https://codeberg.org/m1stD3V/pacseek/archive/v0.1.0.tar.gz
+	sha256sums = SKIP
+
+pkgname = pacseek

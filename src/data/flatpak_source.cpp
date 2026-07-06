@@ -4,6 +4,7 @@
 #include <cstdio>
 #include <sstream>
 #include <string>
+#include <unordered_set>
 #include <vector>
 
 namespace pacseek::data {
@@ -13,6 +14,14 @@ namespace {
 // Tab-separated columns we ask flatpak for, in this order.
 constexpr char kListCommand[] =
     "flatpak list --app --columns=application,name,version,size,origin 2>/dev/null";
+
+// App ids with a pending update, read from the LOCALLY CACHED remote summaries
+// only (--cached): flatpak refreshes that cache whenever the user touches the
+// remotes themselves, so this stays inside pacseek's no-egress-beyond-the-AUR
+// policy - exactly like pacman update detection trusting the last -Sy. With no
+// cache yet the command fails and no updates are reported, same as before.
+constexpr char kUpdatesCommand[] =
+    "flatpak remote-ls --updates --app --cached --columns=application 2>/dev/null";
 
 // Runs `command`, returning its stdout. Empty on failure (e.g. flatpak absent).
 std::string RunCapture(const std::string& command) {
@@ -76,6 +85,18 @@ std::vector<model::Package> FlatpakSource::LoadPackages() {
   std::vector<model::Package> packages;
   const std::string listing = RunCapture(kListCommand);
 
+  // Ids with a cached-pending update; matched against the installed rows below.
+  std::unordered_set<std::string> updatable;
+  {
+    std::istringstream update_stream(RunCapture(kUpdatesCommand));
+    std::string id;
+    while (std::getline(update_stream, id)) {
+      if (!id.empty()) {
+        updatable.insert(id);
+      }
+    }
+  }
+
   std::istringstream stream(listing);
   std::string line;
   while (std::getline(stream, line)) {
@@ -103,6 +124,7 @@ std::vector<model::Package> FlatpakSource::LoadPackages() {
     }
     package.repo = model::Repo::Flatpak;
     package.installed = true;
+    package.has_update = updatable.count(package.name) != 0;
     packages.push_back(std::move(package));
   }
   return packages;
