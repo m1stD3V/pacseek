@@ -363,6 +363,26 @@ gated on `PackageSource::IsReadOnly()` - `true` for `MockSource` (notice only),
 If a value affects how something looks or where a threshold sits, it belongs here,
 named, never inline at the call site.
 
+### The default palette
+
+A single Braun-inspired accent over near-black surfaces, with repository identity
+colors doing the categorical work.
+
+| Token | Hex | Role |
+|-------|-----|------|
+| Accent | `#de542c` | Braun orange: brand, heavy packages, active nav |
+| Repo · core | `#de542c` | orange |
+| Repo · extra | `#8a8f9a` | grey |
+| Repo · aur | `#7fae8b` | sage |
+| Repo · multilib | `#e0b341` | amber |
+| Text | `#e9e7e2` | primary type |
+
+Every color lives in a single `Palette` struct, and the whole UI references it by
+name (`color::Accent`, …). Alternate themes — **tokyo-night**, **catppuccin-mocha**,
+**catppuccin-macchiato**, **gruvbox** — are just other `Palette` values; the active
+one is chosen by the `theme` config key and swapped at startup, so no call site
+hardcodes a hex.
+
 ### The glyph compatibility layer
 
 The chrome leans on geometric and symbol glyphs (`◈ ✦ ◆ ⊘ ❯ ✓ ● ⚠`). Many are
