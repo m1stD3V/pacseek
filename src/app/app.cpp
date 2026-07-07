@@ -48,6 +48,8 @@ system::Manager ManagerForRepo(model::Repo repo) {
       return system::Manager::Aur;
     case model::Repo::Flatpak:
       return system::Manager::Flatpak;
+    case model::Repo::Homebrew:
+      return system::Manager::Homebrew;
     default:
       return system::Manager::Pacman;
   }
@@ -137,6 +139,12 @@ App::App(data::PackageSource& source, const config::Config& config)
   // Seed the rebindable keys so the dispatcher and the controls popout both read
   // the user's bindings; an untouched config leaves the built-in defaults.
   state_.keys = config.keys;
+  // Which managers to surface in the legend / filter (main decides the sources).
+  state_.managers.aur = config.aur_enabled;
+  state_.managers.flatpak = config.flatpak_enabled;
+  state_.managers.homebrew = config.homebrew_enabled;
+  // Install the glyph set before the first frame so ASCII mode is consistent.
+  theme::SetGlyphs(config.ascii_glyphs);
   if (!config.aur_helper.empty()) {
     if (system::IsToolAvailable(config.aur_helper)) {
       tools_.aur_helper = config.aur_helper;
@@ -284,30 +292,29 @@ void App::ToggleSort() {
 }
 
 void App::CycleRepoFilter() {
-  // One step through OFF → Core → Extra → Multilib → Aur → Flatpak → OFF. OFF
-  // clears the filter; every other stop narrows the list to that one repo.
+  // One step through OFF → each enabled repo stop → OFF. The pacman repos are
+  // always present; AUR / Flatpak / Homebrew appear only when the user surfaced
+  // them, so the filter never stops on a manager they turned off.
+  std::vector<model::Repo> stops = {model::Repo::Core, model::Repo::Extra, model::Repo::Multilib};
+  if (state_.managers.aur) {
+    stops.push_back(model::Repo::Aur);
+  }
+  if (state_.managers.flatpak) {
+    stops.push_back(model::Repo::Flatpak);
+  }
+  if (state_.managers.homebrew) {
+    stops.push_back(model::Repo::Homebrew);
+  }
+
   if (!state_.filter_active) {
     state_.filter_active = true;
-    state_.repo_filter = model::Repo::Core;
+    state_.repo_filter = stops.front();
   } else {
-    switch (state_.repo_filter) {
-      case model::Repo::Core:
-        state_.repo_filter = model::Repo::Extra;
-        break;
-      case model::Repo::Extra:
-        state_.repo_filter = model::Repo::Multilib;
-        break;
-      case model::Repo::Multilib:
-        state_.repo_filter = model::Repo::Aur;
-        break;
-      case model::Repo::Aur:
-        state_.repo_filter = model::Repo::Flatpak;
-        break;
-      case model::Repo::Flatpak:
-      case model::Repo::Unknown:
-      default:
-        state_.filter_active = false;  // wrap back to OFF
-        break;
+    const auto it = std::find(stops.begin(), stops.end(), state_.repo_filter);
+    if (it == stops.end() || std::next(it) == stops.end()) {
+      state_.filter_active = false;  // wrap back to OFF
+    } else {
+      state_.repo_filter = *std::next(it);
     }
   }
   state_.status_message.clear();

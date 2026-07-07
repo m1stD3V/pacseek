@@ -43,12 +43,14 @@ add_executable(pacseek
   src/data/mock_source.cpp
   src/data/alpm_source.cpp
   src/data/flatpak_source.cpp
+  src/data/homebrew_source.cpp
   src/data/composite_source.cpp
   src/system/transaction.cpp
   src/system/aur_client.cpp
   src/config/config.cpp
   src/config/collections.cpp
   src/ui/components.cpp
+  src/app/first_run.cpp
   src/app/app.cpp)
 
 target_include_directories(pacseek PRIVATE src)

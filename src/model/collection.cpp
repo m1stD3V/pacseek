@@ -76,6 +76,34 @@ const std::vector<Collection>& BuiltinCollections() {
   return kCollections;
 }
 
+std::string OriginLabel(CollectionOrigin origin) {
+  switch (origin) {
+    case CollectionOrigin::Builtin:
+      return "CURATED";
+    case CollectionOrigin::User:
+      return "USER";
+    case CollectionOrigin::PacmanGroup:
+      return "GROUP";
+  }
+  return "";
+}
+
+std::string ManagerLabel(CollectionManager manager) {
+  switch (manager) {
+    case CollectionManager::Pacman:
+      return "PACMAN";
+    case CollectionManager::Aur:
+      return "AUR";
+    case CollectionManager::Flatpak:
+      return "FLATPAK";
+    case CollectionManager::Homebrew:
+      return "BREW";
+    case CollectionManager::Mixed:
+      break;
+  }
+  return "";
+}
+
 const std::vector<Collection>& Collections() { return ActiveStore(); }
 
 void SetUserCollections(std::vector<Collection> user) {

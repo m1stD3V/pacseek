@@ -7,11 +7,13 @@
 #include <vector>
 
 #include "app/app.hpp"
+#include "app/first_run.hpp"
 #include "config/collections.hpp"
 #include "config/config.hpp"
 #include "data/alpm_source.hpp"
 #include "data/composite_source.hpp"
 #include "data/flatpak_source.hpp"
+#include "data/homebrew_source.hpp"
 #include "data/mock_source.hpp"
 #include "data/package_source.hpp"
 #include "model/collection.hpp"
@@ -30,6 +32,8 @@ constexpr const char* kUsage =
     "\n"
     "Usage: pacseek [options]\n"
     "  --mock         Use the built-in prototype dataset instead of the live system\n"
+    "  --ascii        Use the ASCII glyph set (for terminals without dependable\n"
+    "                 ambiguous-width handling, e.g. alacritty, ghostty, the tty)\n"
     "  -V, --version  Show the version and exit\n"
     "  -h, --help     Show this help and exit\n"
     "\n"
@@ -44,16 +48,22 @@ bool HasFlag(int argc, char** argv, const std::string& flag) {
   return false;
 }
 
-std::unique_ptr<pacseek::data::PackageSource> SelectSource(bool use_mock) {
+std::unique_ptr<pacseek::data::PackageSource> SelectSource(bool use_mock,
+                                                          const pacseek::config::Config& config) {
   if (use_mock) {
     return std::make_unique<pacseek::data::MockSource>();
   }
 
-  // Live system: libalpm (pacman + AUR), plus flatpak when it is installed.
+  // Live system: libalpm (pacman + AUR) always, plus the optional managers the
+  // user surfaced (and whose CLI is actually installed). Flatpak and Homebrew
+  // ride the same PackageSource seam, so the rest of the app is unaffected.
   std::vector<std::unique_ptr<pacseek::data::PackageSource>> sources;
   sources.push_back(std::make_unique<pacseek::data::AlpmSource>());
-  if (pacseek::system::IsToolAvailable("flatpak")) {
+  if (config.flatpak_enabled && pacseek::system::IsToolAvailable("flatpak")) {
     sources.push_back(std::make_unique<pacseek::data::FlatpakSource>());
+  }
+  if (config.homebrew_enabled && pacseek::system::IsToolAvailable("brew")) {
+    sources.push_back(std::make_unique<pacseek::data::HomebrewSource>());
   }
   if (sources.size() == 1) {
     return std::move(sources.front());
@@ -77,15 +87,31 @@ int main(int argc, char** argv) {
   // launching against the live system is worse than refusing to start.
   for (int index = 1; index < argc; ++index) {
     const std::string argument = argv[index];
-    if (argument != "--mock") {
+    if (argument != "--mock" && argument != "--ascii") {
       std::cerr << "pacseek: unknown argument '" << argument << "'\n\n" << kUsage;
       return EXIT_FAILURE;
     }
   }
 
   const bool use_mock = HasFlag(argc, argv, "--mock");
-  std::unique_ptr<pacseek::data::PackageSource> source = SelectSource(use_mock);
-  const pacseek::config::Config config = pacseek::config::LoadConfig();
+  pacseek::config::Config config = pacseek::config::LoadConfig();
+
+  // First run (no config file yet): ask which package managers to surface, then
+  // persist the answers so the prompt never shows again. The chooser seeds its
+  // toggles from tool detection. Skipped under --mock, which is a stateless
+  // preview that shouldn't write config or interrogate the user's setup.
+  if (config.first_run && !use_mock) {
+    config = pacseek::app::RunFirstRunSetup(config, pacseek::system::DetectTools());
+    pacseek::config::PersistFirstRunChoices(config);
+  }
+
+  // The --ascii flag forces the compatibility glyph set for this run, overriding
+  // whatever the config says; the App installs the set before its first frame.
+  if (HasFlag(argc, argv, "--ascii")) {
+    config.ascii_glyphs = true;
+  }
+
+  std::unique_ptr<pacseek::data::PackageSource> source = SelectSource(use_mock, config);
 
   // User-defined collections merge in after the built-ins. A malformed file is a
   // hard error: refuse to start and name every offender rather than silently

@@ -363,13 +363,36 @@ gated on `PackageSource::IsReadOnly()` - `true` for `MockSource` (notice only),
 If a value affects how something looks or where a threshold sits, it belongs here,
 named, never inline at the call site.
 
+### The glyph compatibility layer
+
+The chrome leans on geometric and symbol glyphs (`◈ ✦ ◆ ⊘ ❯ ✓ ● ⚠`). Many are
+East-Asian **ambiguous width**: kitty renders them one cell wide, but other
+terminals (alacritty, ghostty, xterm, the Linux console) may render them
+double-width or as tofu, which shears the fixed-width columns the layout depends
+on. `theme.hpp` therefore carries a `Glyphs` set alongside the palette - a
+Unicode default and an ASCII-safe alternate - and `glyph::` tokens that alias the
+active set exactly like the color tokens alias the active palette. `SetGlyphs`
+swaps the whole set at startup from the `glyphs` config key or the `--ascii`
+flag, and `SafeIcon` narrows any *data*-provided icon (built-in, user, or group
+collection glyphs) to a single cell in ASCII mode. Nothing in `components.cpp`
+hardcodes an ambiguous glyph; it reads a token, so one switch re-skins the UI for
+a terminal that can't be trusted with the fancy set.
+
 ---
 
 ## Extending PacSeek
 
 - **A new data source** (e.g. a live AUR RPC client): implement `PackageSource`,
   return `model::Package` values, and select it in `main.cpp`. Nothing in `ui/`
-  or `model/` needs to change.
+  or `model/` needs to change. `FlatpakSource` and `HomebrewSource` are exactly
+  this: optional sources folded into the `CompositeSource` when the user has
+  surfaced that manager (the `package_managers` config key, seeded by the
+  first-run prompt) *and* its CLI is on PATH. A new package manager is a new
+  `Repo` value, a `system::Manager` case in `BuildCommandLine`, and a source.
+- **Collections carry provenance**: a `Collection` records its `origin`
+  (built-in / user / pacman-group) and target `manager`, so the picker badges
+  the three kinds apart and a user collection in `collections.ini` can declare
+  which manager (`manager = aur`, …) installs its members.
 - **A new view or sort mode**: add to the `View` / `Sort` enums and teach
   `Catalog`'s `MatchesView` / `Visible` about it; the nav and key bindings follow.
 - **A visual change**: adjust a token in `theme.hpp`. If you find yourself typing

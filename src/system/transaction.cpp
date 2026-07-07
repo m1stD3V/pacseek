@@ -86,6 +86,7 @@ Tools DetectTools() {
     }
   }
   tools.has_flatpak = OnPath("flatpak");
+  tools.has_brew = OnPath("brew");
   tools.has_paccache = OnPath("paccache");
   tools.has_pacdiff = OnPath("pacdiff");
   return tools;
@@ -196,6 +197,17 @@ std::string BuildCommandLine(Action action, const std::string& package_name, Man
            package_name;
   }
 
+  // Homebrew manages its own prefix as the invoking user, so no sudo wrapper.
+  // brew's parser has no `--` end-of-options separator, but IsSafePackageName has
+  // already rejected any leading-dash name, so the formula name is safe bare.
+  if (manager == Manager::Homebrew) {
+    if (!tools.has_brew) {
+      error = "brew not found on PATH";
+      return "";
+    }
+    return (action == Action::Install ? "brew install " : "brew uninstall ") + package_name;
+  }
+
   // Installing an AUR package goes through the helper, which runs as the normal
   // user (it escalates internally to build and install). Removal is pacman -Rs.
   if (manager == Manager::Aur && action == Action::Install) {
@@ -242,6 +254,14 @@ std::string BuildBatchCommandLine(Action action, const std::vector<std::string>&
     }
     return std::string(action == Action::Install ? "flatpak install --" : "flatpak uninstall --") +
            arguments;
+  }
+
+  if (manager == Manager::Homebrew) {
+    if (!tools.has_brew) {
+      error = "brew not found on PATH";
+      return "";
+    }
+    return std::string(action == Action::Install ? "brew install" : "brew uninstall") + arguments;
   }
 
   if (action == Action::Install) {

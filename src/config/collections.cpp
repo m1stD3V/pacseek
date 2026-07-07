@@ -25,10 +25,16 @@ constexpr char kTemplate[] =
     "# a hard error that names the offender and stops pacseek from starting.\n"
     "# Packages that aren't installed or in the repos simply show as \"unavailable\".\n"
     "#\n"
+    "# The optional 'manager' key names which package manager the collection's\n"
+    "# members install through - pacman (default), aur, flatpak, or homebrew - and\n"
+    "# tags the collection in the picker so your own collections are told apart\n"
+    "# from the curated ones and pacman's groups.\n"
+    "#\n"
     "# [my-setup]\n"
     "# name = My Setup\n"
     "# icon = \xe2\x98\x85\n"
     "# description = My personal must-haves\n"
+    "# manager = aur\n"
     "# packages = neovim, git, tmux, ripgrep\n";
 
 std::string Trim(const std::string& text) {
@@ -140,6 +146,7 @@ CollectionsResult ParseCollections(const std::string& text) {
       pending.id = Trim(trimmed.substr(1, trimmed.size() - 2));
       pending.id_line = line_number;
       pending.collection.id = pending.id;
+      pending.collection.origin = model::CollectionOrigin::User;
       if (pending.id.empty()) {
         result.errors.push_back({"", line_number, "empty collection id in section header"});
       }
@@ -164,6 +171,24 @@ CollectionsResult ParseCollections(const std::string& text) {
       pending.collection.icon = value;
     } else if (key == "description") {
       pending.collection.description = value;
+    } else if (key == "manager") {
+      // Which package manager the collection's members install through. Strict:
+      // an unknown value is a hard error naming the offender, like the rest of
+      // the file, rather than a silent fall-back to Mixed.
+      const std::string manager = ToLower(value);
+      if (manager == "pacman") {
+        pending.collection.manager = model::CollectionManager::Pacman;
+      } else if (manager == "aur") {
+        pending.collection.manager = model::CollectionManager::Aur;
+      } else if (manager == "flatpak") {
+        pending.collection.manager = model::CollectionManager::Flatpak;
+      } else if (manager == "homebrew" || manager == "brew") {
+        pending.collection.manager = model::CollectionManager::Homebrew;
+      } else {
+        result.errors.push_back(
+            {pending.id, line_number,
+             "unknown manager '" + value + "' (expected pacman, aur, flatpak, or homebrew)"});
+      }
     } else if (key == "packages") {
       pending.packages_seen = true;
       pending.packages_line = line_number;

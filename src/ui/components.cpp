@@ -129,28 +129,55 @@ Element ActionButton(bool installed) {
 
 struct NavEntry {
   View view;
-  const char* icon;
   const char* label;
 };
 
 const std::vector<NavEntry> kNavEntries = {
-    {View::Browse, "◈", "Browse"},
-    {View::Installed, "▣", "Installed"},
-    {View::Updates, "↑", "Updates"},
-    {View::Aur, "✦", "AUR"},
-    {View::Collections, "◆", "Collections"},
-    {View::Orphans, "⊘", "Orphans"},
+    {View::Browse, "Browse"},
+    {View::Installed, "Installed"},
+    {View::Updates, "Updates"},
+    {View::Aur, "AUR"},
+    {View::Collections, "Collections"},
+    {View::Orphans, "Orphans"},
 };
 
-Element NavRow(const NavEntry& entry, int count, bool active, bool highlight_count) {
+// The nav icon for a view, read from the live glyph set so ASCII mode swaps them
+// too. Kept out of kNavEntries (a static built before SetGlyphs runs) so the
+// tokens are resolved at render time, not at static-init time.
+const char* NavIcon(View view) {
+  switch (view) {
+    case View::Browse:
+      return theme::glyph::nav_browse;
+    case View::Installed:
+      return theme::glyph::nav_installed;
+    case View::Updates:
+      return theme::glyph::nav_updates;
+    case View::Aur:
+      return theme::glyph::nav_aur;
+    case View::Collections:
+      return theme::glyph::nav_collections;
+    case View::Orphans:
+      return theme::glyph::nav_orphans;
+  }
+  return theme::glyph::bullet;
+}
+
+// `index` is 0-based; the row is tagged with its 1-based [NN] hotkey label so the
+// number-row shortcut for each view is visible at a glance.
+Element NavRow(const NavEntry& entry, int index, int count, bool active, bool highlight_count) {
   const Color accent_or_blank = active ? palette::Accent : palette::Sidebar;
   const Color label_color = active ? palette::Text : palette::TextDim;
   const Color count_color = highlight_count ? palette::Update : palette::TextFaint;
 
+  char tab_label[8];
+  std::snprintf(tab_label, sizeof(tab_label), "[%02d]", index + 1);
+
   Element row = hbox({
       SolidBlock(1, accent_or_blank),  // left accent bar when active
       text(" "),
-      text(entry.icon) | color(label_color),
+      text(tab_label) | color(active ? palette::Accent : palette::TextFaint) | bold,
+      text(" "),
+      text(NavIcon(entry.view)) | color(label_color),
       text(" "),
       text(entry.label) | color(label_color) | flex,
       text(std::to_string(count)) | color(count_color),
@@ -279,7 +306,8 @@ Element Sidebar(const app::AppState& state, const model::Catalog& catalog) {
   top.push_back(text("  LIBRARY") | color(palette::Label));
   top.push_back(text(""));
 
-  for (const NavEntry& entry : kNavEntries) {
+  for (int index = 0; index < static_cast<int>(kNavEntries.size()); ++index) {
+    const NavEntry& entry = kNavEntries[static_cast<size_t>(index)];
     // Collections aren't packages, so their nav count is the number of curated
     // sets rather than a catalog view count.
     const int count = entry.view == View::Collections
@@ -289,13 +317,26 @@ Element Sidebar(const app::AppState& state, const model::Catalog& catalog) {
     // Updates and Orphans both flag actionable work, so their counts glow.
     const bool highlight =
         (entry.view == View::Updates || entry.view == View::Orphans) && count > 0;
-    top.push_back(NavRow(entry, count, active, highlight));
+    top.push_back(NavRow(entry, index, count, active, highlight));
   }
 
   top.push_back(text(""));
   top.push_back(text("  REPOSITORIES") | color(palette::Label));
   top.push_back(text(""));
-  for (Repo repo : {Repo::Core, Repo::Extra, Repo::Aur, Repo::Multilib, Repo::Flatpak}) {
+  // The pacman repos are always shown; AUR / Flatpak / Homebrew appear only when
+  // the user surfaced that manager (first-run prompt / config), so the legend
+  // mirrors exactly which package managers are in play.
+  std::vector<Repo> legend_repos = {Repo::Core, Repo::Extra, Repo::Multilib};
+  if (state.managers.aur) {
+    legend_repos.push_back(Repo::Aur);
+  }
+  if (state.managers.flatpak) {
+    legend_repos.push_back(Repo::Flatpak);
+  }
+  if (state.managers.homebrew) {
+    legend_repos.push_back(Repo::Homebrew);
+  }
+  for (Repo repo : legend_repos) {
     top.push_back(LegendRow(repo, catalog.InstalledCountForRepo(repo)));
   }
 
@@ -315,10 +356,12 @@ Element Sidebar(const app::AppState& state, const model::Catalog& catalog) {
 
 Element TitleBar() {
   return hbox({
-      text(" ◆ PACSEEK ") | bold | color(palette::BgVoid) | bgcolor(palette::Accent),
+      text(std::string(" ") + theme::glyph::logo + " PACSEEK ") | bold | color(palette::BgVoid) |
+          bgcolor(palette::Accent),
       text("  PACKAGE MANAGER · PACMAN + AUR") | color(palette::TextFaint) | flex,
-      text("▢ ▢ ") | color(palette::ChromeDim),
-      text("▣ ") | color(palette::CloseTint),
+      text(std::string(theme::glyph::chrome_box) + " " + theme::glyph::chrome_box + " ") |
+          color(palette::ChromeDim),
+      text(std::string(theme::glyph::chrome_close) + " ") | color(palette::CloseTint),
   });
 }
 
@@ -348,10 +391,11 @@ Element SearchBar(const app::AppState& state, int result_count, const char* noun
   }
 
   const std::string sort_label =
-      state.sort == model::Sort::SizeDescending ? "SIZE ↓" : "NAME ↓";
+      std::string(state.sort == model::Sort::SizeDescending ? "SIZE " : "NAME ") +
+      theme::glyph::sort_desc;
 
   Elements controls = {
-      text(" ❯ ") | color(palette::Accent),
+      text(std::string(" ") + theme::glyph::prompt + " ") | color(palette::Accent),
       query_field,
       text(std::to_string(result_count) + " " + noun + "  ") | color(palette::Label),
   };
@@ -436,7 +480,8 @@ int NameColumnWidth() {
 
 Element PackageNameColumn(const Package& package, bool marked) {
   // A fixed two-cell marker slot keeps names aligned whether or not marked.
-  Element marker = marked ? (text("✓ ") | color(palette::Accent) | bold) : text("  ");
+  Element marker = marked ? (text(std::string(theme::glyph::mark) + " ") | color(palette::Accent) | bold)
+                          : text("  ");
 
   // Badges are never truncated: the name yields to them, the version yields to
   // the name, and whatever must shrink ends in an ellipsis, not a hard clip.
@@ -495,7 +540,7 @@ Element SizeColumn(const Package& package) {
   // A live AUR result has no size until it is built, but it does carry votes -
   // the column earns its keep as a trust signal instead of a meaningless "0 B".
   if (package.aur_votes >= 0 && package.install_size_bytes == 0) {
-    Element votes = text("▲ " + std::to_string(package.aur_votes)) |
+    Element votes = text(std::string(theme::glyph::vote) + " " + std::to_string(package.aur_votes)) |
                     color(palette::TextMuted) | bold;
     return vbox({RightCell(std::move(votes), layout::kSizeColumnWidth), text("")});
   }
@@ -565,7 +610,7 @@ Element EmptyState(const app::AppState& state) {
                           : "NO PACKAGES MATCH \"" + state.query + "\"";
   Elements body = {
       filler(),
-      text("⊘") | color(palette::ChromeDim) | hcenter,
+      text(theme::glyph::empty) | color(palette::ChromeDim) | hcenter,
       text(""),
       text(message) | color(palette::Label) | hcenter,
   };
@@ -643,6 +688,57 @@ Element CollectionHeader() {
   });
 }
 
+// The identity color for a collection's target manager, reusing the repo colors
+// so a collection's badge matches the packages it installs.
+Color ManagerColor(model::CollectionManager manager) {
+  switch (manager) {
+    case model::CollectionManager::Pacman:
+      return model::RepoColor(model::Repo::Core);
+    case model::CollectionManager::Aur:
+      return model::RepoColor(model::Repo::Aur);
+    case model::CollectionManager::Flatpak:
+      return model::RepoColor(model::Repo::Flatpak);
+    case model::CollectionManager::Homebrew:
+      return model::RepoColor(model::Repo::Homebrew);
+    case model::CollectionManager::Mixed:
+      break;
+  }
+  return palette::TextMuted;
+}
+
+// The origin badge (and, for a user collection with an explicit target, a manager
+// badge) that tells the three kinds of collection apart in the picker: the
+// curated built-ins, the user's own from collections.ini, and pacman's groups.
+Elements CollectionBadges(const model::Collection& collection) {
+  Color origin_color = palette::TextFaint;
+  switch (collection.origin) {
+    case model::CollectionOrigin::Builtin:
+      origin_color = palette::TextFaint;
+      break;
+    case model::CollectionOrigin::User:
+      origin_color = palette::Accent;
+      break;
+    case model::CollectionOrigin::PacmanGroup:
+      origin_color = model::RepoColor(model::Repo::Core);
+      break;
+  }
+  Elements badges = {
+      text(" "),
+      text(" " + model::OriginLabel(collection.origin) + " ") | color(palette::BgVoid) |
+          bgcolor(origin_color) | bold,
+  };
+  // Only a user collection carries a meaningful declared manager (built-ins are
+  // Mixed, groups are self-evidently pacman); show its badge so an AUR- or
+  // Homebrew-targeted collection reads at a glance.
+  const std::string manager = model::ManagerLabel(collection.manager);
+  if (collection.origin == model::CollectionOrigin::User && !manager.empty()) {
+    badges.push_back(text(" "));
+    badges.push_back(text(" " + manager + " ") | color(ManagerColor(collection.manager)) |
+                     bgcolor(palette::Sidebar) | bold);
+  }
+  return badges;
+}
+
 // One collection card: icon + name + description on the left, an availability /
 // installed readout on the right, gutter-accented when selected like a package.
 Element CollectionRow(const model::Collection& collection, const model::Catalog& catalog,
@@ -652,12 +748,16 @@ Element CollectionRow(const model::Collection& collection, const model::Catalog&
   const Color gutter = selected ? palette::Accent : palette::Window;
   const Color icon_color = selected ? palette::Accent : palette::TextDim;
 
-  Element title = hbox({
+  Elements title_cells = {
       text("  "),
-      text(collection.icon) | color(icon_color),
+      text(theme::SafeIcon(collection.icon)) | color(icon_color),
       text("  "),
       text(collection.name) | bold | color(palette::Text),
-  });
+  };
+  for (Element& badge : CollectionBadges(collection)) {
+    title_cells.push_back(std::move(badge));
+  }
+  Element title = hbox(std::move(title_cells));
   Element description = hbox({text("    "), text(collection.description) | color(palette::TextDim)});
 
   Element installed_line =
@@ -822,8 +922,10 @@ std::vector<DetailLine> DetailLines(const model::PackageDetail& detail) {
       }
       kv("Last updated", detail.aur_last_modified);
       if (!detail.aur_out_of_date.empty()) {
-        lines.push_back(
-            {Kind::Warning, "⚠ flagged out-of-date since " + detail.aur_out_of_date, ""});
+        lines.push_back({Kind::Warning,
+                         std::string(theme::glyph::warning) + " flagged out-of-date since " +
+                             detail.aur_out_of_date,
+                         ""});
       }
     } else if (detail.aur_info_pending) {
       lines.push_back({Kind::Note, "fetching AUR data…", ""});
@@ -932,10 +1034,11 @@ Element RenderDetailLine(const DetailLine& line, int selected_link) {
       // The Tab-selected link renders as an accented cursor row, telling the
       // eye where Enter will jump.
       if (line.link >= 0 && line.link == selected_link) {
-        return hbox({text("  ▸ ") | color(palette::Accent) | bold,
+        return hbox({text(std::string("  ") + theme::glyph::arrow + " ") | color(palette::Accent) | bold,
                      text(line.a) | color(palette::Text) | bold});
       }
-      return hbox({text("  · ") | color(palette::ChromeDim), text(line.a) | color(palette::TextDim)});
+      return hbox({text(std::string("  ") + theme::glyph::bullet + " ") | color(palette::ChromeDim),
+                   text(line.a) | color(palette::TextDim)});
     case DetailLine::Kind::Note:
       return text("  " + line.a) | color(palette::TextFaint);
     case DetailLine::Kind::Warning:
@@ -1268,7 +1371,7 @@ Element FileLookupModal(const app::AppState& state) {
       line(text(" FILE → PACKAGE ") | bold | color(palette::BgVoid), palette::Accent));
   rows.push_back(blank());
   rows.push_back(line(hbox({
-                          text(" ❯ ") | color(palette::Accent),
+                          text(std::string(" ") + theme::glyph::prompt + " ") | color(palette::Accent),
                           text(state.file_lookup_query) | color(palette::Text),
                           text("█") | color(palette::Accent) | blink,
                       }),
@@ -1377,7 +1480,7 @@ Element Footer(const app::AppState& state, const model::Catalog& catalog) {
   // The label collapses to just the count on a narrow terminal.
   Element pacnew =
       state.pacnew_count > 0
-          ? (text(std::string("   ⚠ ") + std::to_string(state.pacnew_count) +
+          ? (text(std::string("   ") + theme::glyph::warning + " " + std::to_string(state.pacnew_count) +
                   (narrow ? "" : std::string(" unmerged config") +
                                      (state.pacnew_count == 1 ? "" : "s"))) |
              color(palette::Update))
@@ -1387,7 +1490,7 @@ Element Footer(const app::AppState& state, const model::Catalog& catalog) {
   // beside it can't be trusted, so the dot and label turn amber together.
   const SyncFreshness freshness = DescribeSyncAge(state.last_sync_seconds);
   const Color sync_color = freshness.stale ? palette::Update : palette::Ok;
-  Elements left_cells = {text(" ●") | color(sync_color)};
+  Elements left_cells = {text(std::string(" ") + theme::glyph::sync_dot) | color(sync_color)};
   if (!narrow) {
     const std::string sync_label = freshness.label.empty() ? "SYNCED" : freshness.label;
     left_cells.push_back(text(" " + sync_label) |

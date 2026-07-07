@@ -13,7 +13,20 @@
 
 namespace pacseek::app {
 
+// Which package managers the user chose to surface (from the config / first-run
+// prompt). Pacman is always on and implicit. The UI reads this to decide which
+// REPOSITORIES legend entries and repo-filter stops to show; main uses it to
+// decide which optional data sources to load.
+struct EnabledManagers {
+  bool aur = true;
+  bool flatpak = true;
+  bool homebrew = false;
+};
+
 struct AppState {
+  // Package managers surfaced in the UI; see EnabledManagers.
+  EnabledManagers managers;
+
   model::View view = model::View::Browse;
   model::Sort sort = model::Sort::SizeDescending;
   std::string query;

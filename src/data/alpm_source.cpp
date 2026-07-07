@@ -736,6 +736,8 @@ std::vector<model::Collection> AlpmSource::Groups() {
     collection.icon = "▦";
     collection.description = "pacman group · " + std::to_string(list.size()) + " packages";
     collection.packages = std::move(list);
+    collection.origin = model::CollectionOrigin::PacmanGroup;
+    collection.manager = model::CollectionManager::Pacman;
     collections.push_back(std::move(collection));
   }
   std::sort(collections.begin(), collections.end(),

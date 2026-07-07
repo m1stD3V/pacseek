@@ -47,6 +47,7 @@ Tools FullTools() {
   Tools tools;
   tools.has_sudo = true;
   tools.has_flatpak = true;
+  tools.has_brew = true;
   tools.has_paccache = true;
   tools.has_pacdiff = true;
   tools.aur_helper = "paru";
@@ -76,6 +77,18 @@ void TestSingleCommands() {
   // AUR removal is plain pacman: the package is in the local db like any other.
   CHECK_EQ(system::BuildCommandLine(Action::Remove, "paru-bin", Manager::Aur, tools, error),
            "sudo pacman -Rs -- paru-bin");
+  // Homebrew runs as the invoking user (no sudo) and speaks install/uninstall.
+  CHECK_EQ(system::BuildCommandLine(Action::Install, "ripgrep", Manager::Homebrew, tools, error),
+           "brew install ripgrep");
+  CHECK_EQ(system::BuildCommandLine(Action::Remove, "ripgrep", Manager::Homebrew, tools, error),
+           "brew uninstall ripgrep");
+
+  // No brew on PATH: a Homebrew transaction refuses rather than shelling out.
+  Tools no_brew = tools;
+  no_brew.has_brew = false;
+  CHECK_EQ(system::BuildCommandLine(Action::Install, "ripgrep", Manager::Homebrew, no_brew, error),
+           "");
+  CHECK(!error.empty());
 }
 
 void TestUpdateCommands() {
@@ -165,6 +178,10 @@ void TestNameValidation() {
            "flatpak install -- ripgrep fd");
   CHECK_EQ(system::BuildBatchCommandLine(Action::Install, names, Manager::Aur, tools, error),
            "paru -S ripgrep fd");
+  CHECK_EQ(system::BuildBatchCommandLine(Action::Install, names, Manager::Homebrew, tools, error),
+           "brew install ripgrep fd");
+  CHECK_EQ(system::BuildBatchCommandLine(Action::Remove, names, Manager::Homebrew, tools, error),
+           "brew uninstall ripgrep fd");
 
   // A configured helper name must be a plain command word: no paths (which the
   // shell would resolve against the CWD), no flags, no spaces.
@@ -213,6 +230,27 @@ void TestConfigParser() {
   const config::Config cased = config::ParseConfig("VIEW = OrPhAnS\nSORT = SIZE\n");
   CHECK(cased.view == model::View::Orphans);
   CHECK(cased.sort == model::Sort::SizeDescending);
+
+  // Defaults keep the pre-selection behaviour when no package_managers key is set.
+  CHECK(defaults.aur_enabled);
+  CHECK(defaults.flatpak_enabled);
+  CHECK(!defaults.homebrew_enabled);
+  CHECK(!defaults.ascii_glyphs);
+
+  // package_managers is authoritative: only the listed optional managers are on.
+  const config::Config managers =
+      config::ParseConfig("package_managers = pacman, aur, homebrew\nglyphs = ascii\n");
+  CHECK(managers.aur_enabled);
+  CHECK(!managers.flatpak_enabled);
+  CHECK(managers.homebrew_enabled);
+  CHECK(managers.ascii_glyphs);
+
+  // "brew" is accepted as an alias, and glyphs = unicode turns ASCII back off.
+  const config::Config brew =
+      config::ParseConfig("package_managers = pacman, brew\nglyphs = unicode\n");
+  CHECK(!brew.aur_enabled);
+  CHECK(brew.homebrew_enabled);
+  CHECK(!brew.ascii_glyphs);
 }
 
 // --- collections parser ---------------------------------------------------------
@@ -234,6 +272,27 @@ void TestCollectionsParser() {
   CHECK_EQ(static_cast<int>(good.collections[0].packages.size()), 3);
   CHECK_EQ(good.collections[0].packages[1], "tmux");
   CHECK(!good.collections[1].icon.empty());  // default glyph filled in
+  // Parsed collections are tagged User and default to the Mixed manager.
+  CHECK(good.collections[0].origin == model::CollectionOrigin::User);
+  CHECK(good.collections[0].manager == model::CollectionManager::Mixed);
+
+  // The manager key routes and tags a collection; a known value parses cleanly.
+  const config::CollectionsResult with_manager = config::ParseCollections(
+      "[aur-tools]\n"
+      "name = AUR Tools\n"
+      "manager = aur\n"
+      "packages = paru, yay\n");
+  CHECK(with_manager.errors.empty());
+  CHECK(with_manager.collections[0].manager == model::CollectionManager::Aur);
+
+  // An unknown manager is a hard error, like every other malformation.
+  const config::CollectionsResult bad_manager = config::ParseCollections(
+      "[oops]\n"
+      "name = Oops\n"
+      "manager = choco\n"
+      "packages = git\n");
+  CHECK(!bad_manager.errors.empty());
+  CHECK(bad_manager.collections.empty());
 
   // Each malformation is an error, and any error rejects the whole file.
   const config::CollectionsResult bad = config::ParseCollections(

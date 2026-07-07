@@ -9,16 +9,36 @@
 
 namespace pacseek::model {
 
-// One curated bundle. `packages` are pacman/AUR package names; whether each is
-// available or installed is answered by the Catalog at render time, so this type
-// never touches the system.
+// Where a collection's definition comes from. Drives the picker badge so the
+// three kinds are told apart at a glance: the hand-curated built-ins, the user's
+// own collections from collections.ini, and pacman's official package groups
+// folded in from the sync databases.
+enum class CollectionOrigin { Builtin, User, PacmanGroup };
+
+// Which package manager a collection's members install through. Built-ins and
+// pacman groups resolve per-package by repo (Mixed); a user collection may
+// declare one explicitly (see the `manager` key in collections.ini) so an AUR-
+// or Homebrew-only bundle is routed and badged correctly.
+enum class CollectionManager { Mixed, Pacman, Aur, Flatpak, Homebrew };
+
+// One curated bundle. `packages` are package names; whether each is available or
+// installed is answered by the Catalog at render time, so this type never
+// touches the system.
 struct Collection {
   std::string id;           // stable key, e.g. "gaming"
   std::string name;         // display label, e.g. "Gaming"
   std::string icon;         // single-width glyph for the nav/list
   std::string description;  // one-line summary
   std::vector<std::string> packages;
+  CollectionOrigin origin = CollectionOrigin::Builtin;
+  CollectionManager manager = CollectionManager::Mixed;
 };
+
+// Presentation helpers for the picker badge. Label is a short uppercase tag
+// ("CURATED", "USER", "GROUP"); ManagerLabel names the target manager for the
+// user-declared case ("PACMAN", "AUR", "FLATPAK", "BREW"), empty for Mixed.
+std::string OriginLabel(CollectionOrigin origin);
+std::string ManagerLabel(CollectionManager manager);
 
 // The built-in, hand-curated collections, in display order. Returns a reference
 // to a function-local static so callers can hold pointers into it for the life

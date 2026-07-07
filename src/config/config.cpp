@@ -31,6 +31,15 @@ constexpr char kTemplate[] =
     "# Color theme: default | tokyo-night | catppuccin-mocha | catppuccin-macchiato | gruvbox\n"
     "# theme = tokyo-night\n"
     "\n"
+    "# Package managers to surface, comma-separated: pacman (always on), aur,\n"
+    "# flatpak, homebrew. Governs which sources load and which legend/filter\n"
+    "# entries appear. Set on first run; edit here to change it later.\n"
+    "# package_managers = pacman, aur, flatpak\n"
+    "\n"
+    "# Glyph set: unicode (default) or ascii. Use ascii on terminals that render\n"
+    "# symbol glyphs double-width or as boxes (alacritty, ghostty, tty console).\n"
+    "# glyphs = unicode\n"
+    "\n"
     "# Keybindings: rebind any single-key letter/symbol action with 'key_<action> = <char>'\n"
     "# (e.g. 'key_sort = S'). The value must be exactly one non-space character; the\n"
     "# structural keys (enter, space, esc, arrows, digits 1-5) are fixed and not listed.\n"
@@ -94,6 +103,37 @@ void ApplySort(const std::string& value, Config& config) {
     config.sort = model::Sort::SizeDescending;
   } else if (v == "name") {
     config.sort = model::Sort::NameAscending;
+  }
+}
+
+// A `package_managers = pacman, aur, …` line is authoritative: the listed set is
+// exactly what's surfaced, so start every optional manager off and enable only
+// what's named. Pacman is implicit and always on. Unknown tokens are ignored.
+void ApplyPackageManagers(const std::string& value, Config& config) {
+  config.aur_enabled = false;
+  config.flatpak_enabled = false;
+  config.homebrew_enabled = false;
+  std::stringstream items(value);
+  std::string item;
+  while (std::getline(items, item, ',')) {
+    const std::string token = ToLower(Trim(item));
+    if (token == "aur") {
+      config.aur_enabled = true;
+    } else if (token == "flatpak") {
+      config.flatpak_enabled = true;
+    } else if (token == "homebrew" || token == "brew") {
+      config.homebrew_enabled = true;
+    }
+    // "pacman" and anything unknown: no-op (pacman is always surfaced).
+  }
+}
+
+void ApplyGlyphs(const std::string& value, Config& config) {
+  const std::string v = ToLower(value);
+  if (v == "ascii" || v == "compat" || v == "plain") {
+    config.ascii_glyphs = true;
+  } else if (v == "unicode" || v == "default") {
+    config.ascii_glyphs = false;
   }
 }
 
@@ -203,6 +243,10 @@ Config ParseConfig(const std::string& text) {
       config.aur_helper = value;
     } else if (key == "theme") {
       config.theme = value;
+    } else if (key == "package_managers") {
+      ApplyPackageManagers(value, config);
+    } else if (key == "glyphs") {
+      ApplyGlyphs(value, config);
     } else if (key.rfind("key_", 0) == 0) {
       // A rebindable single-key action: 'key_<action> = <char>'.
       ApplyKeybinding(key.substr(4), value, config);
@@ -221,12 +265,44 @@ Config LoadConfig() {
   std::ifstream file(path);
   if (!file) {
     WriteTemplateIfMissing(path);
-    return {};
+    Config defaults;
+    defaults.first_run = true;  // no file yet: main runs the manager prompt
+    return defaults;
   }
 
   std::ostringstream buffer;
   buffer << file.rdbuf();
   return ParseConfig(buffer.str());
+}
+
+bool PersistFirstRunChoices(const Config& config) {
+  const std::string path = DefaultConfigPath();
+  if (path.empty()) {
+    return false;
+  }
+  std::error_code error;
+  fs::create_directories(fs::path(path).parent_path(), error);
+
+  // Append an authoritative block beneath the commented template LoadConfig
+  // already dropped; the live keys override the comments above them.
+  std::ofstream out(path, std::ios::app);
+  if (!out) {
+    return false;
+  }
+  std::string managers = "pacman";
+  if (config.aur_enabled) {
+    managers += ", aur";
+  }
+  if (config.flatpak_enabled) {
+    managers += ", flatpak";
+  }
+  if (config.homebrew_enabled) {
+    managers += ", homebrew";
+  }
+  out << "\n# --- written by the first-run setup ---\n"
+      << "package_managers = " << managers << "\n"
+      << "glyphs = " << (config.ascii_glyphs ? "ascii" : "unicode") << "\n";
+  return out.good();
 }
 
 }  // namespace pacseek::config

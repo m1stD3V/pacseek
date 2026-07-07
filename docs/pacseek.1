@@ -21,6 +21,17 @@ catalog reloaded.
 Use the built-in prototype dataset instead of the live system. Useful for trying
 the interface without touching libalpm or the network.
 .TP
+.B \-\-ascii
+Render with the ASCII glyph set instead of the Unicode chrome. Use this on
+terminals without dependable East-Asian ambiguous-width handling (for example
+.BR alacritty ", " ghostty ", or the Linux console)"
+where the symbol glyphs would otherwise render double-width and shear the
+columns. Overrides the
+.B glyphs
+config key for the run. The same set can be made permanent with
+.B glyphs = ascii
+in the config file.
+.TP
 .BR \-V ", " \-\-version
 Print the version and exit.
 .TP
@@ -106,10 +117,20 @@ clicking a row selects it, and clicking a sidebar entry switches views.
 .SH FILES
 .TP
 .I ~/.config/pacseek/config.ini
-User configuration: theme and key rebindings.
+User configuration: theme, key rebindings, the
+.B package_managers
+set (which of pacman, aur, flatpak, and homebrew are surfaced \(em chosen on
+first run, editable here), and the
+.B glyphs
+mode (unicode or ascii). When this file does not yet exist, pacseek runs a
+one-time prompt to pick the package managers and writes the answers here.
 .TP
 .I ~/.config/pacseek/collections.ini
-User-defined package collections, merged in after the built-ins.
+User-defined package collections, merged in after the built-ins. Each collection
+may declare a
+.B manager
+(pacman, aur, flatpak, or homebrew) that routes its members and tags it in the
+picker apart from the curated collections and pacman's groups.
 .TP
 .I ~/.config/pacseek/pkglist.txt
 Default target for the export and import commands.

@@ -32,13 +32,14 @@ enum class Action {
 };
 
 // Which package manager owns a package, selecting how a transaction is built.
-enum class Manager { Pacman, Aur, Flatpak };
+enum class Manager { Pacman, Aur, Flatpak, Homebrew };
 
 // External tools available for transactions, probed once from PATH.
 struct Tools {
   bool has_sudo = false;
   std::string aur_helper;     // "paru", "yay", … or empty when none is installed
   bool has_flatpak = false;   // the `flatpak` CLI is on PATH
+  bool has_brew = false;      // the `brew` CLI (Homebrew) is on PATH
   bool has_paccache = false;  // paccache (pacman-contrib), for CleanCache
   bool has_pacdiff = false;   // pacdiff (pacman-contrib), for MergeConfigs
 };
