@@ -1,4 +1,4 @@
-# PacSeek — Usage
+# PacSeek - Usage
 
 Everything PacSeek can do, in more detail than the README wants to carry. If you
 just want to get going, the README's Quick Start is enough; this is the manual for
@@ -50,7 +50,7 @@ clicking a row selects it, and clicking a sidebar entry switches views.
 - **Updates**: packages whose installed version is older than the sync version.
 - **AUR**: foreign packages (AUR or hand-built) already on the system, surfaced
   from the local database. Type a term and press `enter` to replace the list with
-  **live results from the AUR RPC** — packages you can install but don't yet have.
+  **live results from the AUR RPC** - packages you can install but don't yet have.
   The fetch runs on a background thread, so the interface never freezes; results
   drop in when they arrive. Switching views returns to the local foreign list.
   The search is deliberately gentle on the AUR: it fires only on `enter` (never
@@ -58,15 +58,15 @@ clicking a row selects it, and clicking a sidebar entry switches views.
   while a request is in flight, and memoizes each term for the session so the same
   query is never fetched twice. Results carry the AUR's **trust signals**: they
   arrive sorted by popularity (then votes), the vote count fills the size column
-  (`▲ 1227` — an un-built package has no meaningful size anyway), and packages
+  (`▲ 1227` - an un-built package has no meaningful size anyway), and packages
   flagged **out-of-date** upstream wear a badge in the list.
-- **Collections**: hand-curated package bundles grouped by use case — **Gaming**,
+- **Collections**: hand-curated package bundles grouped by use case - **Gaming**,
   **Creative Work**, **Development**, **Multimedia**, and **System & Terminal**. A
   two-level browse: the picker lists each collection with how many of its members
   are available locally and how many are already installed; press `enter` to drill
   in and see those members as an ordinary package list (`esc` / `h` / `←` backs out).
-  Inside a collection everything works as usual — `space` to mark, `enter` to install
-  the marked batch, `d` for detail — so a collection is a fast path to "install the
+  Inside a collection everything works as usual - `space` to mark, `enter` to install
+  the marked batch, `d` for detail - so a collection is a fast path to "install the
   usual set for X". Members live in the curated list, not the network: each name is
   resolved against the local databases, so collections never reach out to the AUR
   (members that aren't in the sync repos simply show as unavailable until installed).
@@ -74,7 +74,7 @@ clicking a row selects it, and clicking a sidebar entry switches views.
   in after the curated and user-defined sets, so a group browses and installs
   through the same machinery.
 - **Orphans**: installed packages that were pulled in as dependencies but nothing
-  needs any more (`pacman -Qdt`) — the safe-to-remove pile. The nav count glows
+  needs any more (`pacman -Qdt`) - the safe-to-remove pile. The nav count glows
   when any exist, and the footer shows the total space you'd reclaim by removing
   them. Work it like any other view: `space` to mark the ones to drop, `enter` to
   remove the batch. A quick way to actually free the space the footprint card's
@@ -88,16 +88,16 @@ narrows the list to a single source on top of whatever view and search are activ
 
 ## The detail pane
 
-Press `d` on any row to open its **detail pane** — an expanded, scrollable view of
+Press `d` on any row to open its **detail pane** - an expanded, scrollable view of
 that one package, loaded on demand from libalpm (file lists are too large to carry
 for every row up front):
 
 - **Provenance**: repository, installed size, licenses, upstream URL, packager,
-  build date, and — for installed packages — the install date, whether it was
+  build date, and - for installed packages - the install date, whether it was
   installed explicitly or as a dependency, and a **why installed** line that
   traces the shortest chain from an explicitly-installed root down to it
   (`gnome → gvfs`) for packages pulled in indirectly.
-- **Install cost** (for a not-installed package): the true disk cost of adding it —
+- **Install cost** (for a not-installed package): the true disk cost of adding it -
   how many dependencies aren't already present and the total install size,
   resolved over the sync databases.
 - **Dependencies**: the package's hard and optional dependencies, what it
@@ -114,7 +114,7 @@ the search fields and notes that the rest appears after installation.
 The relationship bullets are **navigable links**: `tab` cycles a `▸` cursor
 through the dependencies, provides, conflicts, replaces, and required-by entries,
 `enter` opens the highlighted package's own detail pane, and `backspace` (or `←`)
-walks the trail back the way you came — so "what actually is this dependency?"
+walks the trail back the way you came - so "what actually is this dependency?"
 is answered without leaving the pane.
 
 For AUR packages the pane also carries an **AUR trust section**, fetched in the
@@ -166,14 +166,14 @@ terminal so you can see and confirm everything, then reloads and resumes:
 - PacSeek never composes a privileged command from anything but a validated package
   name, and it performs no action until you confirm at the prompts.
 
-Under `--mock`, `enter` only reports what it *would* do — nothing touches the system.
+Under `--mock`, `enter` only reports what it *would* do - nothing touches the system.
 
 ## Previews and safety prompts
 
 Before a transaction commits, PacSeek surfaces what the raw command won't:
 
 - **Partial-upgrade guard.** Installing while updates are pending (a `-S` without
-  `-Syu`, which risks a partial-upgrade breakage) opens a confirmation first —
+  `-Syu`, which risks a partial-upgrade breakage) opens a confirmation first -
   `enter` to proceed anyway, `u` to run the full upgrade instead, `esc` to cancel.
 - **Removal cascade preview.** Removing a single package first shows everything
   `-Rs` will also drag out and the space it reclaims, so there are no surprises at
@@ -189,19 +189,19 @@ about, and otherwise the action applies straight through.
   disk-footprint card gains a "reclaim" line totalling what removing them frees.
   Mark them with `space` and remove the batch to act on it.
 - **Fix install reasons.** Press `r` to flip the selected installed package
-  between *explicit* and *dependency* (`pacman -D`) — the correction that keeps the
+  between *explicit* and *dependency* (`pacman -D`) - the correction that keeps the
   orphan set trustworthy.
 - **Unmerged configs.** A bounded scan of `/etc` at startup counts `.pacnew` /
   `.pacsave` files left after updates; when any exist the footer shows a count, so
-  they aren't silently forgotten — and `m` launches `pacdiff` right there to merge
+  they aren't silently forgotten - and `m` launches `pacdiff` right there to merge
   them (the key declines with a notice when there's nothing to merge).
 - **Sync-database age.** The footer's `● SYNCED` chip is honest: it shows how long
   ago the sync databases were last refreshed (`SYNCED 6h AGO`), and past a week it
-  turns amber — so "0 updates" is never mistaken for "up to date" on a system that
+  turns amber - so "0 updates" is never mistaken for "up to date" on a system that
   simply hasn't run `-Sy` lately. An empty Updates view says the same thing in
   place (`databases synced 23h ago · y re-checks`), and `y` runs `sudo pacman -Sy`
   through the usual terminal handoff, reloading the catalog on return so the
-  Updates tab reflects upstream again — no dropping to a shell just to find out
+  Updates tab reflects upstream again - no dropping to a shell just to find out
   what's pending. The refresh is only ever user-initiated, and the
   partial-upgrade guard already covers the classic refresh-then-install hazard.
 - **Package-cache reclaim.** The disk-footprint card shows the size of
@@ -209,14 +209,14 @@ about, and otherwise the action applies straight through.
   of each package) behind the same confirmation prompt as any transaction. Both
   maintenance keys need `pacman-contrib` installed and say so when it isn't.
 - **File → package lookup.** Press `o`, type a path or command, and PacSeek names
-  the package that owns it — scanning your installed files first, then the sync
+  the package that owns it - scanning your installed files first, then the sync
   files database when it is present (it never runs `-Fy`; it hints to when absent).
 
 ## Multi-select (mass install / removal)
 
 Press `space` to **mark** the selected package (a `✓` appears and the selection
 auto-advances, so marking a run is one repeated keystroke), or `a` to mark
-**everything currently visible** in one stroke — filter to the Orphans view and
+**everything currently visible** in one stroke - filter to the Orphans view and
 `a` + `enter` is "remove all orphans". When every visible row is already marked,
 `a` clears them instead. Marks are kept by name, so they persist as you change
 views, search, and sort. The footer shows a live `N marked · enter to apply`
@@ -224,7 +224,7 @@ prompt.
 
 Press `enter` to apply the whole marked set as a **single batch**:
 
-- All-install marks become one `sudo pacman -S --needed <pkgs>` — or one
+- All-install marks become one `sudo pacman -S --needed <pkgs>` - or one
   `paru`/`yay` `-S <pkgs>` when any are from the AUR (the helper installs repo and
   AUR packages together).
 - All-remove marks become one `sudo pacman -Rs <pkgs>`.
@@ -239,8 +239,8 @@ Beyond pacman repositories and the AUR, PacSeek also surfaces **flatpak**
 applications when the `flatpak` CLI is installed: installed apps appear in the
 catalog tagged `FLATPAK` (a blue badge and its own legend / footprint segment),
 and `enter` removes them via `flatpak uninstall`. Flatpak **updates** are detected
-too — from flatpak's own cached remote summaries (`remote-ls --cached`), so no
-network request is made — and show up in the Updates view; when any are pending,
+too - from flatpak's own cached remote summaries (`remote-ls --cached`), so no
+network request is made - and show up in the Updates view; when any are pending,
 the `u` system upgrade chains `flatpak update` after `pacman -Syu`. Stale
 flatpaks never trigger the partial-upgrade guard, which only counts pacman
 updates. Remote (flathub) search is a later milestone, so for now every flatpak
@@ -248,5 +248,5 @@ row is one you already have.
 
 AUR transactions run through the first helper found on `PATH`, probed in order:
 `paru`, `yay`, `pikaur`, `trizen` (override with `aur_helper` in
-the config). A batch (multi-select) is one manager at a time — pacman/AUR can mix,
+the config). A batch (multi-select) is one manager at a time - pacman/AUR can mix,
 but flatpak applies separately.

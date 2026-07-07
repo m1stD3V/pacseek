@@ -1,11 +1,11 @@
-# PacSeek — Configuration
+# PacSeek - Configuration
 
 PacSeek runs fine with zero config. But if you like your tools to remember your
 preferences, here's every knob.
 
 PacSeek reads an optional config file from `$XDG_CONFIG_HOME/pacseek/config.ini`
 (falling back to `~/.config/pacseek/config.ini`). On first run, if no file exists,
-PacSeek writes a fully-commented template there so the options are discoverable —
+PacSeek writes a fully-commented template there so the options are discoverable -
 it never overwrites an existing file.
 
 The format is a flat, commented `key = value` file. Parsing is lenient: blank
@@ -41,8 +41,8 @@ theme = tokyo-night
 ## Custom keybindings
 
 Every single-letter action is rebindable with a `key_<action> = <char>` line, so
-your muscle memory travels with your config folder. The structural keys — `enter`,
-`space`, `esc`, the arrows, and the `1`–`5` view numbers — stay fixed; only the
+your muscle memory travels with your config folder. The structural keys - `enter`,
+`space`, `esc`, the arrows, and the `1`–`5` view numbers - stay fixed; only the
 letter/symbol actions rebind. Unset actions keep their defaults, and an empty or
 multi-character value is ignored. The controls popout (`?`) always reflects the
 keys actually in effect.
@@ -64,7 +64,7 @@ keys actually in effect.
 `~/.config/pacseek/pkglist.txt`, one name per line; `i` reads it back and installs
 whatever is missing (through the AUR helper when one is present, so repo and AUR
 names restore together). Back up the config folder and a fresh machine rehydrates
-with a single keystroke — the whole-system sibling of user-defined collections.
+with a single keystroke - the whole-system sibling of user-defined collections.
 
 ## User-defined collections
 
@@ -94,13 +94,13 @@ keys are ignored, so a newer file never breaks an older binary. Package names ar
 your repos simply render as *unavailable*, exactly like the AUR entries in the
 built-in collections.
 
-A **malformed** collection — a missing `name`, an empty package entry (a stray
-comma), a duplicate id, or a bad section header — is a **hard error**. PacSeek
+A **malformed** collection - a missing `name`, an empty package entry (a stray
+comma), a duplicate id, or a bad section header - is a **hard error**. PacSeek
 refuses to start and prints each offender by collection and line number, so a
 typo is never silently swallowed:
 
 ```
-pacseek: refusing to start — user-defined collections are invalid:
+pacseek: refusing to start - user-defined collections are invalid:
   collections.ini [my-setup] (line 4): empty package name in 'packages' (stray comma?)
 Fix ~/.config/pacseek/collections.ini and try again.
 ```

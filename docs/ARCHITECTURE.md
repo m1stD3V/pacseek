@@ -378,8 +378,8 @@ colors doing the categorical work.
 | Text | `#e9e7e2` | primary type |
 
 Every color lives in a single `Palette` struct, and the whole UI references it by
-name (`color::Accent`, …). Alternate themes — **tokyo-night**, **catppuccin-mocha**,
-**catppuccin-macchiato**, **gruvbox** — are just other `Palette` values; the active
+name (`color::Accent`, …). Alternate themes - **tokyo-night**, **catppuccin-mocha**,
+**catppuccin-macchiato**, **gruvbox** - are just other `Palette` values; the active
 one is chosen by the `theme` config key and swapped at startup, so no call site
 hardcodes a hex.
 

@@ -4,7 +4,7 @@
 
 **A tech-brutalist TUI package manager for Arch Linux.**
 
-The one that judges your disk usage — `pacman` (core · extra · multilib), the
+The one that judges your disk usage - `pacman` (core · extra · multilib), the
 **AUR**, and **flatpak**, in one keyboard-driven terminal, with zero mercy for
 that 4 GiB you forgot you installed.
 
@@ -26,8 +26,8 @@ headline metric**: every package wears a storage-impact bar normalized to the
 heaviest thing in view, and the sidebar carries a live **disk-footprint card** that
 puts your installed total against your whole drive, broken down by repository color.
 
-It reads real data straight from pacman's own **libalpm** — no shelling out, no
-scraping CLI output — and dresses it in a Braun-inspired brutalist skin: square
+It reads real data straight from pacman's own **libalpm** - no shelling out, no
+scraping CLI output - and dresses it in a Braun-inspired brutalist skin: square
 corners, machined chrome, a single orange accent, and mono data type.
 
 ## Highlights
@@ -35,13 +35,13 @@ corners, machined chrome, a single orange accent, and mono data type.
 - **Storage-first, and it means it.** Per-package impact bars, heavy-package
   highlighting (anything ≥ 300 MiB turns orange), a repo-segmented disk-footprint
   card, and an orphans view that tells you exactly how much space you'd reclaim.
-- **Real data, no scraping.** Links libalpm directly — the local database joined
+- **Real data, no scraping.** Links libalpm directly - the local database joined
   against the sync databases, with foreign / hand-built packages surfaced as AUR,
   plus live AUR RPC search and flatpak apps folded into the same catalog.
 - **Built for big systems.** The package list is virtualized: it renders only the
   rows that fit your terminal, so a full 15,000-package catalog scrolls instantly.
 - **Safe by default.** A partial-upgrade guard, a removal-cascade preview, and an
-  honest sync-age footer catch the hazards the raw commands don't flag — and
+  honest sync-age footer catch the hazards the raw commands don't flag - and
   nothing touches your system until you confirm at the real prompts.
 - **Keyboard-driven, yours to rebind.** Views, search, sort, detail, and batches
   are all a keystroke away, every letter binding is configurable, and your config
@@ -55,8 +55,8 @@ corners, machined chrome, a single orange accent, and mono data type.
 ./install.sh --help          # prefix / build-dir / jobs options
 ```
 
-`install.sh` verifies the toolchain, does a Release build, installs, and — if the
-install dir isn't on your `PATH` — prints the exact line to add for your shell.
+`install.sh` verifies the toolchain, does a Release build, installs, and - if the
+install dir isn't on your `PATH` - prints the exact line to add for your shell.
 
 Then run it:
 
@@ -66,7 +66,7 @@ pacseek --mock     # the 22-package design prototype (offline, read-only)
 pacseek --help
 ```
 
-Kicking the tires? `--mock` is a self-contained dataset that touches nothing —
+Kicking the tires? `--mock` is a self-contained dataset that touches nothing -
 it's the same thing you see in the GIF above.
 
 <details>
@@ -80,7 +80,7 @@ cmake --install build --prefix ~/.local       # drops the binary at ~/.local/bin
 ```
 
 **Requirements:** a C++17 compiler (GCC or Clang), CMake ≥ 3.20, `libalpm`
-(pacman's own library — you already have it), and `libcurl` for AUR search.
+(pacman's own library - you already have it), and `libcurl` for AUR search.
 `nlohmann-json` is optional and auto-detected; FTXUI is fetched and pinned
 automatically by CMake (v6.1.9).
 
@@ -88,7 +88,7 @@ automatically by CMake (v6.1.9).
 
 ## Usage at a glance
 
-Six views — **Browse · Installed · Updates · AUR · Collections · Orphans** — on the
+Six views - **Browse · Installed · Updates · AUR · Collections · Orphans** - on the
 number keys `1`–`6`. `/` searches, `s` sorts by size or name, `f` filters by repo,
 `d` opens a package's detail pane, `space` marks packages for a batch, and `enter`
 applies. Lost? Press `?` for the full keymap.
@@ -104,7 +104,7 @@ That's the tour. The full manual lives in the docs:
 
 ## Status
 
-**Feature-complete for 1.0** — a sentence every developer has said and PacSeek
+**Feature-complete for 1.0** - a sentence every developer has said and PacSeek
 actually means. Browse, search, live sizes, update detection, real transactions
 (pacman, AUR helpers, and flatpak), the detail pane, orphan cleanup, and the whole
 disk-footprint story are live. There's a `pacseek.1` man page, a CTest suite under

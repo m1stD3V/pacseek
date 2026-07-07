@@ -1,4 +1,4 @@
-# PacSeek demo recording — render with:  vhs docs/demo.tape
+# PacSeek demo recording - render with:  vhs docs/demo.tape
 # Drives the offline --mock dataset so it's deterministic and touches nothing.
 
 Output docs/demo.gif
@@ -18,14 +18,14 @@ Enter
 Sleep 2s
 Show
 
-# Browse — let the storage-impact bars sit for a beat
+# Browse - let the storage-impact bars sit for a beat
 Sleep 2s
 
 # Walk down the list
 Down@400ms 4
 Sleep 1s
 
-# Sort by size — the heavy packages float up in orange
+# Sort by size - the heavy packages float up in orange
 Type "s"
 Sleep 2s
 
