@@ -38,9 +38,11 @@ int RevealDetailLink(const model::PackageDetail& detail, int scroll, int link_in
 // Mouse hit-testing, sharing the exact layout math the renderer draws with.
 // ListIndexAt maps a click to an index into the visible row list (packages or
 // collection cards - both are three terminal rows tall), or -1 when the click
-// is outside the list body. NavEntryAt maps a click on the sidebar to a LIBRARY
-// entry index (the kViewHotkeys order), or -1.
+// is outside the list body. NavEntryAt maps a click on the sidebar to a VIEWS
+// entry index (the kViewHotkeys order), or -1. SourceEntryAt maps a click on the
+// SOURCES list to an index into EnabledSources(state.managers), or -1.
 int ListIndexAt(const app::AppState& state, int row_count, int x, int y);
 int NavEntryAt(int x, int y);
+int SourceEntryAt(const app::AppState& state, int x, int y);
 
 }  // namespace pacseek::ui

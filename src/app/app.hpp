@@ -51,11 +51,12 @@ class App {
   bool HandleSearchEvent(const ftxui::Event& event);
   void MoveSelection(int delta);
   void SwitchView(model::View view);
+  void SwitchSource(model::Source source);
   void ToggleSort();
   // Advances the repo filter one step through OFF → Core → Extra → Multilib →
   // Aur → Flatpak → OFF, narrowing the package list to a single source (or, at
   // OFF, showing everything again). Cycled with 'f'.
-  void CycleRepoFilter();
+  void CycleSource();
 
   // Detail pane control. OpenDetail loads the selected row's expanded data from
   // the source; ScrollDetail moves the viewport; CloseDetail returns to the list.

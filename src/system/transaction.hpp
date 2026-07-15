@@ -32,7 +32,8 @@ enum class Action {
 };
 
 // Which package manager owns a package, selecting how a transaction is built.
-enum class Manager { Pacman, Aur, Flatpak, Homebrew };
+// Npm / Bun / Pnpm operate on globally-installed JavaScript packages.
+enum class Manager { Pacman, Aur, Flatpak, Homebrew, Npm, Bun, Pnpm };
 
 // External tools available for transactions, probed once from PATH.
 struct Tools {
@@ -40,6 +41,9 @@ struct Tools {
   std::string aur_helper;     // "paru", "yay", … or empty when none is installed
   bool has_flatpak = false;   // the `flatpak` CLI is on PATH
   bool has_brew = false;      // the `brew` CLI (Homebrew) is on PATH
+  bool has_npm = false;       // the `npm` CLI is on PATH
+  bool has_bun = false;       // the `bun` CLI is on PATH
+  bool has_pnpm = false;      // the `pnpm` CLI is on PATH
   bool has_paccache = false;  // paccache (pacman-contrib), for CleanCache
   bool has_pacdiff = false;   // pacdiff (pacman-contrib), for MergeConfigs
 };

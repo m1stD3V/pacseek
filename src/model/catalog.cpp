@@ -23,8 +23,6 @@ bool MatchesView(const Package& package, View view) {
       return package.installed;
     case View::Updates:
       return package.has_update;
-    case View::Aur:
-      return package.repo == Repo::Aur;
     case View::Collections:
       // Collections never filter through the view predicate; they go through
       // VisibleInSet. Listing the case keeps the switch exhaustive.
@@ -136,6 +134,16 @@ int Catalog::InstalledCountForRepo(Repo repo) const {
   int count = 0;
   for (const Package& package : packages_) {
     if (package.installed && package.repo == repo) {
+      ++count;
+    }
+  }
+  return count;
+}
+
+int Catalog::InstalledCountForSource(Source source) const {
+  int count = 0;
+  for (const Package& package : packages_) {
+    if (package.installed && RepoInSource(package.repo, source)) {
       ++count;
     }
   }

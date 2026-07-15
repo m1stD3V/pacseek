@@ -16,7 +16,7 @@ namespace pacseek::model {
 // Collections is special: it is not a per-package predicate but a picker over
 // curated name sets (see model/collection.hpp), so it filters via VisibleInSet
 // rather than the view machinery.
-enum class View { Browse, Installed, Updates, Aur, Collections, Orphans };
+enum class View { Browse, Installed, Updates, Orphans, Collections };
 
 // Row ordering toggled by the SORT control.
 enum class Sort { SizeDescending, NameAscending };
@@ -65,6 +65,10 @@ class Catalog {
 
   // Installed-package count for one repo (the REPOSITORIES legend).
   int InstalledCountForRepo(Repo repo) const;
+
+  // Installed packages belonging to a source (pacman groups core/extra/multilib;
+  // Source::All is the whole installed set). Drives the SOURCES selector counts.
+  int InstalledCountForSource(Source source) const;
 
   // The largest installed footprint across the whole dataset; storage bars are
   // normalized to this so they stay comparable between views.

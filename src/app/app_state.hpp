@@ -15,13 +15,43 @@ namespace pacseek::app {
 
 // Which package managers the user chose to surface (from the config / first-run
 // prompt). Pacman is always on and implicit. The UI reads this to decide which
-// REPOSITORIES legend entries and repo-filter stops to show; main uses it to
-// decide which optional data sources to load.
+// SOURCES entries and filter stops to show; main uses it to decide which optional
+// data sources to load.
 struct EnabledManagers {
   bool aur = true;
   bool flatpak = true;
   bool homebrew = false;
+  bool npm = false;
+  bool bun = false;
+  bool pnpm = false;
 };
+
+// The SOURCES selector, in display order: All and pacman are always present;
+// every other source appears only when its manager is surfaced. `f` cycles this
+// list (All is index 0, so stepping past the end wraps back to it) and clicking a
+// SOURCES row jumps straight to it.
+inline std::vector<model::Source> EnabledSources(const EnabledManagers& managers) {
+  std::vector<model::Source> sources = {model::Source::All, model::Source::Pacman};
+  if (managers.aur) {
+    sources.push_back(model::Source::Aur);
+  }
+  if (managers.flatpak) {
+    sources.push_back(model::Source::Flatpak);
+  }
+  if (managers.homebrew) {
+    sources.push_back(model::Source::Homebrew);
+  }
+  if (managers.npm) {
+    sources.push_back(model::Source::Npm);
+  }
+  if (managers.bun) {
+    sources.push_back(model::Source::Bun);
+  }
+  if (managers.pnpm) {
+    sources.push_back(model::Source::Pnpm);
+  }
+  return sources;
+}
 
 struct AppState {
   // Package managers surfaced in the UI; see EnabledManagers.
@@ -36,11 +66,11 @@ struct AppState {
   // compares events against these instead of hardcoded characters.
   config::Keybindings keys;
 
-  // Repo filter, cycled with 'f': when active, the package-list views show only
-  // rows from `repo_filter`. Off by default so every source is visible; the
-  // cycle steps OFF → Core → Extra → Multilib → Aur → Flatpak → OFF.
-  bool filter_active = false;
-  model::Repo repo_filter = model::Repo::Core;
+  // The selected SOURCES entry (the second UI axis, orthogonal to `view`): the
+  // package-list views show only rows belonging to it. Source::All (the default)
+  // shows every ecosystem; `f` cycles the list and the SOURCES sidebar reflects
+  // the choice. Selecting Source::Aur turns the search box into a live AUR query.
+  model::Source source_filter = model::Source::All;
 
   // Index into the currently-visible row list; clamped whenever the list changes.
   int selected_index = 0;

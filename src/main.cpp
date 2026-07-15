@@ -15,6 +15,7 @@
 #include "data/flatpak_source.hpp"
 #include "data/homebrew_source.hpp"
 #include "data/mock_source.hpp"
+#include "data/node_source.hpp"
 #include "data/package_source.hpp"
 #include "model/collection.hpp"
 #include "system/transaction.hpp"
@@ -64,6 +65,14 @@ std::unique_ptr<pacseek::data::PackageSource> SelectSource(bool use_mock,
   }
   if (config.homebrew_enabled && pacseek::system::IsToolAvailable("brew")) {
     sources.push_back(std::make_unique<pacseek::data::HomebrewSource>());
+  }
+  // The JavaScript global managers share one source; it queries only the ones the
+  // user surfaced whose CLI is actually installed.
+  const bool npm = config.npm_enabled && pacseek::system::IsToolAvailable("npm");
+  const bool bun = config.bun_enabled && pacseek::system::IsToolAvailable("bun");
+  const bool pnpm = config.pnpm_enabled && pacseek::system::IsToolAvailable("pnpm");
+  if (npm || bun || pnpm) {
+    sources.push_back(std::make_unique<pacseek::data::NodeSource>(npm, bun, pnpm));
   }
   if (sources.size() == 1) {
     return std::move(sources.front());

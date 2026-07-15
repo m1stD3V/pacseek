@@ -136,9 +136,8 @@ const std::vector<NavEntry> kNavEntries = {
     {View::Browse, "Browse"},
     {View::Installed, "Installed"},
     {View::Updates, "Updates"},
-    {View::Aur, "AUR"},
-    {View::Collections, "Collections"},
     {View::Orphans, "Orphans"},
+    {View::Collections, "Collections"},
 };
 
 // The nav icon for a view, read from the live glyph set so ASCII mode swaps them
@@ -152,8 +151,6 @@ const char* NavIcon(View view) {
       return theme::glyph::nav_installed;
     case View::Updates:
       return theme::glyph::nav_updates;
-    case View::Aur:
-      return theme::glyph::nav_aur;
     case View::Collections:
       return theme::glyph::nav_collections;
     case View::Orphans:
@@ -189,15 +186,26 @@ Element NavRow(const NavEntry& entry, int index, int count, bool active, bool hi
   return row;
 }
 
-Element LegendRow(Repo repo, int installed_count) {
-  return hbox({
-      text("  "),
-      text("█") | color(model::RepoColor(repo)),
+// A SOURCES row: the second nav axis. Interactive like a VIEWS row - it carries
+// the active accent bar and highlight, its identity color, and its installed
+// count - so the selected source reads the same way the selected view does.
+Element SourceRow(model::Source source, int installed_count, bool active) {
+  const Color bar = active ? palette::Accent : palette::Sidebar;
+  const Color label_color = active ? palette::Text : palette::TextMuted;
+  const Color count_color = active ? palette::TextDim : palette::TextFaint;
+  Element row = hbox({
+      SolidBlock(1, bar),  // left accent bar when active, mirroring NavRow
       text(" "),
-      text(model::RepoBadgeLabel(repo)) | color(palette::TextMuted) | flex,
-      text(std::to_string(installed_count)) | color(palette::TextFaint),
+      text("█") | color(model::SourceColor(source)),
+      text(" "),
+      text(model::SourceLabel(source)) | color(label_color) | flex,
+      text(std::to_string(installed_count)) | color(count_color),
       text("  "),
   });
+  if (active) {
+    row = row | bgcolor(palette::NavActiveBg);
+  }
+  return row;
 }
 
 // Splits a byte count into the big number and its unit, for the footprint card.
@@ -303,7 +311,7 @@ Element FootprintCard(const model::Catalog& catalog, const app::AppState& state)
 Element Sidebar(const app::AppState& state, const model::Catalog& catalog) {
   Elements top;
   top.push_back(text(""));
-  top.push_back(text("  LIBRARY") | color(palette::Label));
+  top.push_back(text("  VIEWS") | color(palette::Label));
   top.push_back(text(""));
 
   for (int index = 0; index < static_cast<int>(kNavEntries.size()); ++index) {
@@ -321,23 +329,14 @@ Element Sidebar(const app::AppState& state, const model::Catalog& catalog) {
   }
 
   top.push_back(text(""));
-  top.push_back(text("  REPOSITORIES") | color(palette::Label));
+  top.push_back(text("  SOURCES") | color(palette::Label));
   top.push_back(text(""));
-  // The pacman repos are always shown; AUR / Flatpak / Homebrew appear only when
-  // the user surfaced that manager (first-run prompt / config), so the legend
-  // mirrors exactly which package managers are in play.
-  std::vector<Repo> legend_repos = {Repo::Core, Repo::Extra, Repo::Multilib};
-  if (state.managers.aur) {
-    legend_repos.push_back(Repo::Aur);
-  }
-  if (state.managers.flatpak) {
-    legend_repos.push_back(Repo::Flatpak);
-  }
-  if (state.managers.homebrew) {
-    legend_repos.push_back(Repo::Homebrew);
-  }
-  for (Repo repo : legend_repos) {
-    top.push_back(LegendRow(repo, catalog.InstalledCountForRepo(repo)));
+  // The SOURCES axis: All and pacman are always present; every other source shows
+  // only when its manager is surfaced. The active source carries the same accent
+  // highlight as the active view, and each row is clickable (see SourceEntryAt).
+  for (model::Source source : app::EnabledSources(state.managers)) {
+    const bool active = state.source_filter == source;
+    top.push_back(SourceRow(source, catalog.InstalledCountForSource(source), active));
   }
 
   // The nav/legend block flexes to push the footprint card to the foot of the
@@ -399,12 +398,12 @@ Element SearchBar(const app::AppState& state, int result_count, const char* noun
       query_field,
       text(std::to_string(result_count) + " " + noun + "  ") | color(palette::Label),
   };
-  // Active repo filter reads as a chip beside SORT: a faint FILTER label and the
-  // repo's own badge label in its repo color, on the same sidebar-tinted track.
-  if (state.filter_active) {
-    controls.push_back(text(" FILTER ") | color(palette::TextFaint) | bgcolor(palette::Sidebar));
-    controls.push_back(text(model::RepoBadgeLabel(state.repo_filter) + " ") |
-                       color(model::RepoColor(state.repo_filter)) | bgcolor(palette::Sidebar));
+  // A non-All source filter reads as a chip beside SORT: a faint SOURCE label and
+  // the source's own label in its identity color, on the sidebar-tinted track.
+  if (state.source_filter != model::Source::All) {
+    controls.push_back(text(" SOURCE ") | color(palette::TextFaint) | bgcolor(palette::Sidebar));
+    controls.push_back(text(model::SourceLabel(state.source_filter) + " ") |
+                       color(model::SourceColor(state.source_filter)) | bgcolor(palette::Sidebar));
   }
   controls.push_back(text(" SORT ") | color(palette::TextFaint) | bgcolor(palette::Sidebar));
   controls.push_back(text(sort_label + " ") | color(palette::TextMuted) | bgcolor(palette::Sidebar));
@@ -1256,14 +1255,14 @@ Element HelpModal(const config::Keybindings& keys) {
       row("backspace", "detail pane · back to previous"),
       row(key(keys.file_lookup), "find which package owns a file"),
       row(key(keys.sort), "toggle sort: size ↓ / name ↓"),
-      row(key(keys.filter), "cycle repo filter (core/extra/…)"),
+      row(key(keys.filter), "cycle source (all/pacman/aur/…)"),
   };
   Elements act = {
       section("ACT"),
       row("space", "mark / unmark for a batch"),
       row(key(keys.mark_all), "mark / unmark everything visible"),
       row("enter", "apply marked (or act on selection)"),
-      row("enter", "AUR search box · live AUR search"),
+      row("enter", "search box, AUR source · live AUR search"),
       row(key(keys.update), "full system update (-Syu)"),
       row(key(keys.refresh), "refresh the sync databases (-Sy)"),
       row(key(keys.reason), "flip install reason (explicit / dep)"),
@@ -1610,6 +1609,19 @@ int NavEntryAt(int x, int y) {
   constexpr int kNavTopRows = 5;
   const int index = y - kNavTopRows;
   return index >= 0 && index < static_cast<int>(kNavEntries.size()) ? index : -1;
+}
+
+int SourceEntryAt(const app::AppState& state, int x, int y) {
+  if (x >= layout::kSidebarWidth) {
+    return -1;
+  }
+  // Below the VIEWS block: the same fixed chrome NavEntryAt skips (5 rows), then
+  // the view rows, then the blank / SOURCES label / blank that opens the list.
+  constexpr int kNavTopRows = 5;
+  const int sources_top = kNavTopRows + static_cast<int>(kNavEntries.size()) + 3;
+  const int index = y - sources_top;
+  const int count = static_cast<int>(app::EnabledSources(state.managers).size());
+  return index >= 0 && index < count ? index : -1;
 }
 
 Element RenderApp(const app::AppState& state, const model::Catalog& catalog,

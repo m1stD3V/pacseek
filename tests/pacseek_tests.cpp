@@ -48,6 +48,9 @@ Tools FullTools() {
   tools.has_sudo = true;
   tools.has_flatpak = true;
   tools.has_brew = true;
+  tools.has_npm = true;
+  tools.has_bun = true;
+  tools.has_pnpm = true;
   tools.has_paccache = true;
   tools.has_pacdiff = true;
   tools.aur_helper = "paru";
@@ -144,6 +147,53 @@ void TestMaintenanceCommands() {
   CHECK(!error.empty());
   CHECK_EQ(system::BuildCommandLine(Action::RefreshDatabases, "", Manager::Pacman, tools, error),
            "");
+  CHECK(!error.empty());
+}
+
+void TestNodeCommands() {
+  const Tools tools = FullTools();
+  std::string error;
+
+  // Each JavaScript global manager installs/removes globally as the invoking user
+  // (no sudo), with its own verbs.
+  CHECK_EQ(system::BuildCommandLine(Action::Install, "typescript", Manager::Npm, tools, error),
+           "npm install -g typescript");
+  CHECK_EQ(system::BuildCommandLine(Action::Remove, "typescript", Manager::Npm, tools, error),
+           "npm uninstall -g typescript");
+  CHECK_EQ(system::BuildCommandLine(Action::Install, "vite", Manager::Bun, tools, error),
+           "bun add -g vite");
+  CHECK_EQ(system::BuildCommandLine(Action::Remove, "vite", Manager::Bun, tools, error),
+           "bun remove -g vite");
+  CHECK_EQ(system::BuildCommandLine(Action::Install, "eslint", Manager::Pnpm, tools, error),
+           "pnpm add -g eslint");
+  CHECK_EQ(system::BuildCommandLine(Action::Remove, "eslint", Manager::Pnpm, tools, error),
+           "pnpm remove -g eslint");
+
+  // Scoped names (@scope/pkg) carry a '/', which the pacman alphabet rejects but
+  // the node validator allows - the whole point of node-specific validation.
+  CHECK_EQ(system::BuildCommandLine(Action::Install, "@angular/cli", Manager::Npm, tools, error),
+           "npm install -g @angular/cli");
+  CHECK_EQ(system::BuildCommandLine(Action::Install, "@angular/cli", Manager::Pacman, tools, error),
+           "");
+  CHECK(!error.empty());
+
+  // A scoped batch installs together under one manager.
+  const std::vector<std::string> names = {"@angular/cli", "typescript"};
+  CHECK_EQ(system::BuildBatchCommandLine(Action::Install, names, Manager::Npm, tools, error),
+           "npm install -g @angular/cli typescript");
+
+  // Injection vectors are still refused for node managers (leading dash, shell
+  // metacharacters, path traversal beyond a single scope separator).
+  const std::vector<std::string> bad = {"-g", "--force", "a;rm", "$(x)", "a b", ""};
+  for (const std::string& name : bad) {
+    CHECK_EQ(system::BuildCommandLine(Action::Install, name, Manager::Npm, tools, error), "");
+    CHECK(!error.empty());
+  }
+
+  // CLI absent: the transaction refuses rather than shelling out to a missing tool.
+  Tools no_pnpm = tools;
+  no_pnpm.has_pnpm = false;
+  CHECK_EQ(system::BuildCommandLine(Action::Install, "eslint", Manager::Pnpm, no_pnpm, error), "");
   CHECK(!error.empty());
 }
 
@@ -381,6 +431,7 @@ int main() {
   TestSingleCommands();
   TestUpdateCommands();
   TestMaintenanceCommands();
+  TestNodeCommands();
   TestNameValidation();
   TestConfigParser();
   TestCollectionsParser();
