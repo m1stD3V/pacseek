@@ -31,6 +31,26 @@ bool IsSafePackageName(const std::string& name) {
   return true;
 }
 
+// npm-registry names extend the safe alphabet with '/' for scoped packages
+// (`@angular/cli`). '/' is not a shell metacharacter, so it can't smuggle syntax
+// into the command line; the leading-dash rejection (flag injection) still holds.
+// Used only for node managers, which pass names to npm/bun/pnpm, never to a shell
+// path or pacman.
+bool IsSafeNodePackageName(const std::string& name) {
+  if (name.empty() || name[0] == '-' || name[0] == '.') {
+    return false;
+  }
+  for (char c : name) {
+    const bool allowed = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+                         (c >= '0' && c <= '9') || c == '@' || c == '.' || c == '_' ||
+                         c == '+' || c == '-' || c == '/';
+    if (!allowed) {
+      return false;
+    }
+  }
+  return true;
+}
+
 // A name safe to echo into a status/error line: control characters (which could
 // carry terminal escape sequences) are replaced and the tail is elided so one
 // bad entry can't flood or corrupt the display.
@@ -87,6 +107,9 @@ Tools DetectTools() {
   }
   tools.has_flatpak = OnPath("flatpak");
   tools.has_brew = OnPath("brew");
+  tools.has_npm = OnPath("npm");
+  tools.has_bun = OnPath("bun");
+  tools.has_pnpm = OnPath("pnpm");
   tools.has_paccache = OnPath("paccache");
   tools.has_pacdiff = OnPath("pacdiff");
   return tools;
@@ -113,6 +136,41 @@ std::string PacmanRemove(const std::string& args, const Tools& tools, std::strin
   }
   // -Rs also removes dependencies that no other installed package still needs.
   return "sudo pacman -Rs --" + args;
+}
+
+// Resolves a node manager to its CLI name, its global install/remove verbs, and
+// whether that CLI is present. Returns false for a non-node manager, leaving the
+// out-params untouched. Kept table-shaped so the single and batch builders share
+// one source of truth for the command syntax.
+bool NodeManagerInfo(Manager manager, const Tools& tools, const char*& cli, const char*& add_cmd,
+                     const char*& remove_cmd, bool& available) {
+  switch (manager) {
+    case Manager::Npm:
+      cli = "npm";
+      add_cmd = "npm install -g";
+      remove_cmd = "npm uninstall -g";
+      available = tools.has_npm;
+      return true;
+    case Manager::Bun:
+      cli = "bun";
+      add_cmd = "bun add -g";
+      remove_cmd = "bun remove -g";
+      available = tools.has_bun;
+      return true;
+    case Manager::Pnpm:
+      cli = "pnpm";
+      add_cmd = "pnpm add -g";
+      remove_cmd = "pnpm remove -g";
+      available = tools.has_pnpm;
+      return true;
+    default:
+      return false;
+  }
+}
+
+// True when `manager` is one of the JavaScript global managers.
+bool IsNodeManager(Manager manager) {
+  return manager == Manager::Npm || manager == Manager::Bun || manager == Manager::Pnpm;
 }
 
 }  // namespace
@@ -167,6 +225,28 @@ std::string BuildCommandLine(Action action, const std::string& package_name, Man
     // -r keeps the 3 most recent cached versions of each package; pacdiff walks
     // every unmerged .pacnew/.pacsave interactively.
     return action == Action::CleanCache ? "sudo paccache -r" : "sudo pacdiff";
+  }
+
+  // JavaScript global managers run before the pacman-alphabet gate: their names
+  // may be scoped (@scope/pkg), so they use the node validator (which permits
+  // '/'). They run as the invoking user - the global prefix is expected to be
+  // user-writable, so no sudo wrapper; a root-owned prefix surfaces the CLI's own
+  // permission error in the restored terminal.
+  if (IsNodeManager(manager) && (action == Action::Install || action == Action::Remove)) {
+    const char* cli = "";
+    const char* add_cmd = "";
+    const char* remove_cmd = "";
+    bool available = false;
+    NodeManagerInfo(manager, tools, cli, add_cmd, remove_cmd, available);
+    if (!available) {
+      error = std::string(cli) + " not found on PATH";
+      return "";
+    }
+    if (!IsSafeNodePackageName(package_name)) {
+      error = "refusing unusual package name: " + DisplayName(package_name);
+      return "";
+    }
+    return std::string(action == Action::Install ? add_cmd : remove_cmd) + " " + package_name;
   }
 
   if (!IsSafePackageName(package_name)) {
@@ -237,14 +317,30 @@ std::string BuildBatchCommandLine(Action action, const std::vector<std::string>&
   }
 
   // Validate every name and assemble the argument list. One bad name rejects the
-  // whole batch rather than silently dropping it.
+  // whole batch rather than silently dropping it. Node managers accept scoped
+  // names, so they validate against the node alphabet (which permits '/').
+  const bool node = IsNodeManager(manager);
   std::string arguments;
   for (const std::string& name : names) {
-    if (!IsSafePackageName(name)) {
+    const bool ok = node ? IsSafeNodePackageName(name) : IsSafePackageName(name);
+    if (!ok) {
       error = "refusing unusual package name: " + DisplayName(name);
       return "";
     }
     arguments += " " + name;
+  }
+
+  if (node) {
+    const char* cli = "";
+    const char* add_cmd = "";
+    const char* remove_cmd = "";
+    bool available = false;
+    NodeManagerInfo(manager, tools, cli, add_cmd, remove_cmd, available);
+    if (!available) {
+      error = std::string(cli) + " not found on PATH";
+      return "";
+    }
+    return std::string(action == Action::Install ? add_cmd : remove_cmd) + arguments;
   }
 
   if (manager == Manager::Flatpak) {

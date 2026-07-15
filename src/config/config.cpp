@@ -18,8 +18,12 @@ constexpr char kTemplate[] =
     "# pacseek configuration\n"
     "# Lines starting with '#' are comments. Remove the '#' to enable a setting.\n"
     "\n"
-    "# Initial view when pacseek starts: browse | installed | updates | aur | collections | orphans\n"
+    "# Initial view when pacseek starts: browse | installed | updates | orphans | collections\n"
     "# view = browse\n"
+    "\n"
+    "# Initial source filter: all | pacman | aur | flatpak | homebrew | npm | bun | pnpm\n"
+    "# (the SOURCES axis; pick aur to open on a live AUR search box)\n"
+    "# source = all\n"
     "\n"
     "# Initial sort order: size | name\n"
     "# sort = size\n"
@@ -32,8 +36,9 @@ constexpr char kTemplate[] =
     "# theme = tokyo-night\n"
     "\n"
     "# Package managers to surface, comma-separated: pacman (always on), aur,\n"
-    "# flatpak, homebrew. Governs which sources load and which legend/filter\n"
-    "# entries appear. Set on first run; edit here to change it later.\n"
+    "# flatpak, homebrew, npm, bun, pnpm. Governs which sources load and which\n"
+    "# legend/filter entries appear. npm/bun/pnpm list globally-installed packages\n"
+    "# (npm install -g, etc.). Set on first run; edit here to change it later.\n"
     "# package_managers = pacman, aur, flatpak\n"
     "\n"
     "# Glyph set: unicode (default) or ascii. Use ascii on terminals that render\n"
@@ -88,7 +93,10 @@ void ApplyView(const std::string& value, Config& config) {
   } else if (v == "updates") {
     config.view = model::View::Updates;
   } else if (v == "aur") {
-    config.view = model::View::Aur;
+    // Legacy: AUR was once a view. It is now a source, so land on Browse with the
+    // AUR source pre-selected - the same packages, in the new model.
+    config.view = model::View::Browse;
+    config.source = model::Source::Aur;
   } else if (v == "collections") {
     config.view = model::View::Collections;
   } else if (v == "orphans") {
@@ -106,6 +114,29 @@ void ApplySort(const std::string& value, Config& config) {
   }
 }
 
+// The initial SOURCES filter. Unknown values leave the default (All), like the
+// rest of the lenient parser.
+void ApplySource(const std::string& value, Config& config) {
+  const std::string v = ToLower(value);
+  if (v == "all") {
+    config.source = model::Source::All;
+  } else if (v == "pacman") {
+    config.source = model::Source::Pacman;
+  } else if (v == "aur") {
+    config.source = model::Source::Aur;
+  } else if (v == "flatpak") {
+    config.source = model::Source::Flatpak;
+  } else if (v == "homebrew" || v == "brew") {
+    config.source = model::Source::Homebrew;
+  } else if (v == "npm") {
+    config.source = model::Source::Npm;
+  } else if (v == "bun") {
+    config.source = model::Source::Bun;
+  } else if (v == "pnpm") {
+    config.source = model::Source::Pnpm;
+  }
+}
+
 // A `package_managers = pacman, aur, …` line is authoritative: the listed set is
 // exactly what's surfaced, so start every optional manager off and enable only
 // what's named. Pacman is implicit and always on. Unknown tokens are ignored.
@@ -113,6 +144,9 @@ void ApplyPackageManagers(const std::string& value, Config& config) {
   config.aur_enabled = false;
   config.flatpak_enabled = false;
   config.homebrew_enabled = false;
+  config.npm_enabled = false;
+  config.bun_enabled = false;
+  config.pnpm_enabled = false;
   std::stringstream items(value);
   std::string item;
   while (std::getline(items, item, ',')) {
@@ -123,6 +157,12 @@ void ApplyPackageManagers(const std::string& value, Config& config) {
       config.flatpak_enabled = true;
     } else if (token == "homebrew" || token == "brew") {
       config.homebrew_enabled = true;
+    } else if (token == "npm") {
+      config.npm_enabled = true;
+    } else if (token == "bun") {
+      config.bun_enabled = true;
+    } else if (token == "pnpm") {
+      config.pnpm_enabled = true;
     }
     // "pacman" and anything unknown: no-op (pacman is always surfaced).
   }
@@ -239,6 +279,8 @@ Config ParseConfig(const std::string& text) {
       ApplyView(value, config);
     } else if (key == "sort") {
       ApplySort(value, config);
+    } else if (key == "source") {
+      ApplySource(value, config);
     } else if (key == "aur_helper") {
       config.aur_helper = value;
     } else if (key == "theme") {
@@ -298,6 +340,15 @@ bool PersistFirstRunChoices(const Config& config) {
   }
   if (config.homebrew_enabled) {
     managers += ", homebrew";
+  }
+  if (config.npm_enabled) {
+    managers += ", npm";
+  }
+  if (config.bun_enabled) {
+    managers += ", bun";
+  }
+  if (config.pnpm_enabled) {
+    managers += ", pnpm";
   }
   out << "\n# --- written by the first-run setup ---\n"
       << "package_managers = " << managers << "\n"

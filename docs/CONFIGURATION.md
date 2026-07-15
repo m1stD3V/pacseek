@@ -38,6 +38,24 @@ theme = tokyo-night
 | `theme` | `default` · `tokyo-night` · `catppuccin-mocha` · `catppuccin-macchiato` · `gruvbox` | the color palette (names are case-insensitive; spaces/underscores ok) |
 | `key_<action>` | a single character | rebinds a letter action (see below) |
 
+## Package managers
+
+Which managers PacSeek surfaces is set once on first run and stored as a
+comma-separated `package_managers` line. Pacman is always on and implicit; the
+rest are opt-in:
+
+```ini
+# pacman is always on. Add any of: aur, flatpak, homebrew, npm, bun, pnpm.
+package_managers = pacman, aur, flatpak, npm
+```
+
+The listed set is authoritative - a manager not named is off, and unknown tokens
+are ignored, so an older binary never trips over a newer file. **npm**, **bun**,
+and **pnpm** surface globally-installed packages (`npm install -g`, etc.); a
+source loads only when its manager is listed *and* the CLI is on `PATH`. See
+[Package managers](USAGE.md#package-managers) in the usage guide for what each one
+does.
+
 ## Custom keybindings
 
 Every single-letter action is rebindable with a `key_<action> = <char>` line, so

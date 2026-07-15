@@ -53,13 +53,16 @@ config::Config RunFirstRunSetup(const config::Config& base, const system::Tools&
 
   // Seed from detection: AUR is always offered on Arch; flatpak and homebrew
   // default on only when their CLI is present, but the user can force either.
-  std::array<Toggle, 4> toggles = {{
+  std::array<Toggle, 7> toggles = {{
       {"AUR - Arch User Repository", "", true},
       {"Flatpak", tools.has_flatpak ? "detected" : "not found on PATH", tools.has_flatpak},
       {"Homebrew", tools.has_brew ? "detected" : "not found on PATH", tools.has_brew},
+      {"npm - global packages", tools.has_npm ? "detected" : "not found on PATH", tools.has_npm},
+      {"bun - global packages", tools.has_bun ? "detected" : "not found on PATH", tools.has_bun},
+      {"pnpm - global packages", tools.has_pnpm ? "detected" : "not found on PATH", tools.has_pnpm},
       {"ASCII glyphs - for alacritty / ghostty / tty consoles", "", false},
   }};
-  constexpr int kContinueRow = 4;  // one past the toggles
+  constexpr int kContinueRow = 7;  // one past the toggles
   int selected = 0;
 
   auto screen = ScreenInteractive::Fullscreen();
@@ -125,7 +128,10 @@ config::Config RunFirstRunSetup(const config::Config& base, const system::Tools&
   config.aur_enabled = toggles[0].value;
   config.flatpak_enabled = toggles[1].value;
   config.homebrew_enabled = toggles[2].value;
-  config.ascii_glyphs = toggles[3].value;
+  config.npm_enabled = toggles[3].value;
+  config.bun_enabled = toggles[4].value;
+  config.pnpm_enabled = toggles[5].value;
+  config.ascii_glyphs = toggles[6].value;
   return config;
 }
 

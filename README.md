@@ -88,10 +88,11 @@ automatically by CMake (v6.1.9).
 
 ## Usage at a glance
 
-Six views - **Browse · Installed · Updates · AUR · Collections · Orphans** - on the
-number keys `1`–`6`. `/` searches, `s` sorts by size or name, `f` filters by repo,
-`d` opens a package's detail pane, `space` marks packages for a batch, and `enter`
-applies. Lost? Press `?` for the full keymap.
+Two axes. **Views** - Browse · Installed · Updates · Orphans · Collections - on
+number keys `1`–`5`, and **Sources** - All · pacman · AUR · flatpak · npm · … -
+cycled with `f` (or clicked). Pick a view, optionally narrow it to one ecosystem.
+`/` searches, `s` sorts by size or name, `d` opens a package's detail pane, `space`
+marks a batch, `enter` applies. Lost? Press `?` for the full keymap.
 
 That's the tour. The full manual lives in the docs:
 

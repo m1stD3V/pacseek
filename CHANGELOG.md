@@ -19,6 +19,8 @@ one-line command? If not, it belongs to the CLI, not here (see
 - [x] Multi-select for mass install / removal
 - [x] Configuration file at `~/.config/pacseek/config.ini` (initial view / sort, AUR helper override, theme, keybindings)
 - [x] Other package managers: flatpak backend (list / install / remove) and broader AUR-helper detection (paru, yay, pikaur, trizen)
+- [x] Two-axis navigation: the sidebar splits into VIEWS (Browse / Installed / Updates / Orphans / Collections, keys 1-5) and an interactive SOURCES list (All / pacman / AUR / flatpak / brew / npm / bun / pnpm, cycled with `f` or clicked). AUR stopped being a special tab and became a source like every other manager; its live RPC search now runs when the AUR source is selected. One coherent model instead of one manager getting a tab and the rest being tags.
+- [x] JavaScript global managers (npm / bun / pnpm): globally-installed packages folded into the catalog with real on-disk sizes (recursive byte count under each manager's global node_modules), per-manager badge / legend / footprint segment / filter, scoped-name (`@scope/pkg`) support in install / remove / batch, and per-manager batching. No update detection by design - `npm outdated` and friends hit the registry, and egress stays user-initiated.
 - [x] Theme support: default (brutalist), tokyo-night, catppuccin-mocha, catppuccin-macchiato, gruvbox
 - [x] Curated package collections by use case (gaming, creative work, development, multimedia, system/terminal)
 - [x] User-defined collections in a sibling `collections.ini`, with malformed collections as a hard error that names the offender; unresolved package names render as "unavailable" rather than failing

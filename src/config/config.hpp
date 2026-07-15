@@ -14,8 +14,9 @@
 namespace pacseek::config {
 
 struct Config {
-  model::View view = model::View::Browse;          // initial view
-  model::Sort sort = model::Sort::SizeDescending;  // initial sort
+  model::View view = model::View::Browse;              // initial view
+  model::Sort sort = model::Sort::SizeDescending;      // initial sort
+  model::Source source = model::Source::All;           // initial SOURCES filter
   std::string aur_helper;  // override auto-detection ("paru" / "yay"); empty = auto
   std::string theme;       // reserved for upcoming theme support; empty = default
   Keybindings keys;        // rebindable single-key actions; defaults = current keys
@@ -28,6 +29,11 @@ struct Config {
   bool aur_enabled = true;
   bool flatpak_enabled = true;
   bool homebrew_enabled = false;
+  // JavaScript global managers, off by default (surfaced only when the user opts
+  // in on first run or via the package_managers key).
+  bool npm_enabled = false;
+  bool bun_enabled = false;
+  bool pnpm_enabled = false;
 
   // Glyph rendering mode: false = Unicode chrome (default), true = the ASCII-safe
   // set for terminals without dependable ambiguous-width handling (see theme.hpp

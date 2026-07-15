@@ -44,6 +44,7 @@ add_executable(pacseek
   src/data/alpm_source.cpp
   src/data/flatpak_source.cpp
   src/data/homebrew_source.cpp
+  src/data/node_source.cpp
   src/data/composite_source.cpp
   src/system/transaction.cpp
   src/system/aur_client.cpp
@@ -85,7 +86,8 @@ if(BUILD_TESTING)
     src/system/transaction.cpp
     src/config/config.cpp
     src/config/collections.cpp
-    src/model/catalog.cpp)
+    src/model/catalog.cpp
+    src/model/package.cpp)
   target_include_directories(pacseek_tests PRIVATE src)
   # model/package.hpp pulls in an FTXUI header for the repo-color type, so the
   # tests need its include paths even though they never render anything.

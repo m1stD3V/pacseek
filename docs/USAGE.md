@@ -8,14 +8,14 @@ when you're ready to make it sing.
 
 | Key | Action |
 |-----|--------|
-| `1` – `6` | switch view: Browse / Installed / Updates / AUR / Collections / Orphans |
+| `1` – `5` | switch **view**: Browse / Installed / Updates / Orphans / Collections |
+| `f` | cycle **source**: All / pacman / AUR / flatpak / brew / npm / bun / pnpm (only the enabled ones) |
 | `/` | focus search (`Esc` or `Enter` to leave) |
-| `enter` (in search, AUR view) | run a live AUR RPC search for the typed term |
+| `enter` (in search, AUR source) | run a live AUR RPC search for the typed term |
 | `enter` (Collections picker) | open the highlighted collection |
 | `esc` / `h` / `←` (in a collection) | back out to the collections picker |
 | `j` / `k` | move selection (also `↓` / `↑`) |
 | `s` | toggle sort: size ↓ / name ↓ |
-| `f` | cycle the repo filter (core / extra / multilib / aur / flatpak / off) |
 | `u` | update: full system upgrade (`-Syu`) |
 | `y` | refresh the sync databases (`-Sy`) so the update counts are current |
 | `d` | open the detail pane for the selected package (`d` / `esc` / `q` to close) |
@@ -43,23 +43,30 @@ own keys.
 The **mouse** works too: the wheel scrolls the list (or an open detail pane),
 clicking a row selects it, and clicking a sidebar entry switches views.
 
-## Views
+## Views and sources
+
+The sidebar has two independent axes, and this is the whole mental model:
+
+- **VIEWS** (top, number keys `1`-`5`) are *what subset* you're looking at:
+  Browse, Installed, Updates, Orphans, Collections.
+- **SOURCES** (below, cycled with `f` or clicked) are *which ecosystem*: All,
+  pacman, AUR, Flatpak, Brew, npm, bun, pnpm - only the managers you enabled.
+
+They combine: pick a view, then optionally narrow it to one source. "Installed +
+AUR" is your foreign packages; "Updates + flatpak" is your pending flatpak
+updates; "All" (the default source) shows every ecosystem at once. Every manager
+is treated identically - there is no special tab for any one of them.
+
+### Views
 
 - **Browse**: everything in the sync repositories.
 - **Installed**: only what's currently on the system.
 - **Updates**: packages whose installed version is older than the sync version.
-- **AUR**: foreign packages (AUR or hand-built) already on the system, surfaced
-  from the local database. Type a term and press `enter` to replace the list with
-  **live results from the AUR RPC** - packages you can install but don't yet have.
-  The fetch runs on a background thread, so the interface never freezes; results
-  drop in when they arrive. Switching views returns to the local foreign list.
-  The search is deliberately gentle on the AUR: it fires only on `enter` (never
-  per keystroke), needs at least two characters, collapses repeat Enter-presses
-  while a request is in flight, and memoizes each term for the session so the same
-  query is never fetched twice. Results carry the AUR's **trust signals**: they
-  arrive sorted by popularity (then votes), the vote count fills the size column
-  (`▲ 1227` - an un-built package has no meaningful size anyway), and packages
-  flagged **out-of-date** upstream wear a badge in the list.
+- **Orphans**: installed packages that were pulled in as dependencies but nothing
+  needs any more (`pacman -Qdt`) - the safe-to-remove pile. The nav count glows
+  when any exist, and the footer shows the total space you'd reclaim by removing
+  them. Work it like any other view: `space` to mark the ones to drop, `enter` to
+  remove the batch.
 - **Collections**: hand-curated package bundles grouped by use case - **Gaming**,
   **Creative Work**, **Development**, **Multimedia**, and **System & Terminal**. A
   two-level browse: the picker lists each collection with how many of its members
@@ -73,18 +80,30 @@ clicking a row selects it, and clicking a sidebar entry switches views.
   The **official pacman groups** (`base-devel`, …) that libalpm exposes are folded
   in after the curated and user-defined sets, so a group browses and installs
   through the same machinery.
-- **Orphans**: installed packages that were pulled in as dependencies but nothing
-  needs any more (`pacman -Qdt`) - the safe-to-remove pile. The nav count glows
-  when any exist, and the footer shows the total space you'd reclaim by removing
-  them. Work it like any other view: `space` to mark the ones to drop, `enter` to
-  remove the batch. A quick way to actually free the space the footprint card's
-  "reclaimable" line has been telling you about.
+### Sources
+
+The SOURCES list is the second axis. `f` cycles it (**All → pacman → each enabled
+source → All**), and clicking a row jumps straight to it; the selected source
+carries the same accent highlight as the selected view, and a `SOURCE` chip shows
+it beside `SORT`. `pacman` groups the core / extra / multilib repos into one
+entry; every other source maps to one manager. Selecting a source narrows
+whatever view and search are active to that ecosystem.
+
+**AUR is a source, not a tab.** Select it and the list is your foreign / hand-built
+packages; type a term and press `enter` and the box becomes a **live AUR RPC
+search**, replacing the list with installable packages you don't yet have. The
+fetch runs on a background thread so the interface never freezes; results drop in
+when they arrive, and leaving the AUR source returns to the local list. The search
+is deliberately gentle on the AUR: it fires only on `enter` (never per keystroke),
+needs at least two characters, collapses repeat Enter-presses while a request is in
+flight, and memoizes each term for the session so the same query is never fetched
+twice. Results carry the AUR's **trust signals**: sorted by popularity (then
+votes), the vote count fills the size column (`▲ 1227` - an un-built package has no
+meaningful size anyway), and packages flagged **out-of-date** upstream wear a badge.
 
 Search filters the active view by a case-insensitive match over package **name and
 description** (within a collection it narrows that collection's members). The nav
-counts always reflect the whole dataset, independent of the current search. Press
-`f` to cycle a **repo filter** (core / extra / multilib / aur / flatpak) that
-narrows the list to a single source on top of whatever view and search are active.
+counts always reflect the whole dataset, independent of the current search.
 
 ## The detail pane
 
@@ -246,7 +265,34 @@ flatpaks never trigger the partial-upgrade guard, which only counts pacman
 updates. Remote (flathub) search is a later milestone, so for now every flatpak
 row is one you already have.
 
+Homebrew formulae and casks surface the same way when the `brew` CLI is present,
+tagged `BREW`, installed and removed as your normal user (no sudo - brew owns its
+own prefix).
+
+### JavaScript global managers (npm / bun / pnpm)
+
+Enable any of **npm**, **bun**, or **pnpm** and PacSeek folds their
+**globally-installed** packages (`npm install -g`, `bun add -g`, `pnpm add -g`)
+into the catalog, each with its own badge (`NPM` red, `BUN` pink, `PNPM` gold),
+legend entry, footprint segment, and repo-filter stop. This is the whole point of
+the storage-first framing applied to the Node world: that global `@google/gemini-cli`
+or `typescript` shows a real impact bar next to your pacman packages, because its
+size is measured straight off disk (a recursive byte count of its files under the
+manager's global `node_modules`), not guessed. Scoped names like `@angular/cli`
+work everywhere - install, remove, and multi-select batches.
+
+Transactions run as your normal user with each tool's own verbs -
+`npm install -g` / `npm uninstall -g`, `bun add -g` / `bun remove -g`,
+`pnpm add -g` / `pnpm remove -g` - so no sudo is wrapped (the global prefix is
+expected to be user-writable; a root-owned prefix surfaces the CLI's own
+permission error in the handoff terminal). There is **no update detection** for
+these: `npm outdated` and friends reach the npm registry, and PacSeek keeps all
+network access user-initiated, so it never polls on your behalf. Remote registry
+search is a possible later milestone; for now every row is a global you already
+have.
+
 AUR transactions run through the first helper found on `PATH`, probed in order:
 `paru`, `yay`, `pikaur`, `trizen` (override with `aur_helper` in
 the config). A batch (multi-select) is one manager at a time - pacman/AUR can mix,
-but flatpak applies separately.
+but flatpak, brew, and each of npm/bun/pnpm apply separately (they're distinct
+CLIs and can't share one invocation).

@@ -24,14 +24,14 @@ namespace pacseek::app {
 using ftxui::Event;
 
 namespace {
-// Maps the number-row keys to the LIBRARY nav order.
-constexpr std::array<std::pair<char, model::View>, 6> kViewHotkeys = {{
+// Maps the number-row keys to the VIEWS nav order (the "what subset" axis;
+// sources are the separate SOURCES axis, cycled with the filter key).
+constexpr std::array<std::pair<char, model::View>, 5> kViewHotkeys = {{
     {'1', model::View::Browse},
     {'2', model::View::Installed},
     {'3', model::View::Updates},
-    {'4', model::View::Aur},
+    {'4', model::View::Orphans},
     {'5', model::View::Collections},
-    {'6', model::View::Orphans},
 }};
 
 // Custom event an AUR worker thread posts to wake the loop once its results are
@@ -50,6 +50,12 @@ system::Manager ManagerForRepo(model::Repo repo) {
       return system::Manager::Flatpak;
     case model::Repo::Homebrew:
       return system::Manager::Homebrew;
+    case model::Repo::Npm:
+      return system::Manager::Npm;
+    case model::Repo::Bun:
+      return system::Manager::Bun;
+    case model::Repo::Pnpm:
+      return system::Manager::Pnpm;
     default:
       return system::Manager::Pacman;
   }
@@ -136,6 +142,7 @@ App::App(data::PackageSource& source, const config::Config& config)
   // command. Otherwise keep the detected helper and surface a notice.
   state_.view = config.view;
   state_.sort = config.sort;
+  state_.source_filter = config.source;
   // Seed the rebindable keys so the dispatcher and the controls popout both read
   // the user's bindings; an untouched config leaves the built-in defaults.
   state_.keys = config.keys;
@@ -143,6 +150,9 @@ App::App(data::PackageSource& source, const config::Config& config)
   state_.managers.aur = config.aur_enabled;
   state_.managers.flatpak = config.flatpak_enabled;
   state_.managers.homebrew = config.homebrew_enabled;
+  state_.managers.npm = config.npm_enabled;
+  state_.managers.bun = config.bun_enabled;
+  state_.managers.pnpm = config.pnpm_enabled;
   // Install the glyph set before the first frame so ASCII mode is consistent.
   theme::SetGlyphs(config.ascii_glyphs);
   if (!config.aur_helper.empty()) {
@@ -180,10 +190,10 @@ void App::RefreshSystemIndicators() {
 
 std::vector<const model::Package*> App::CurrentVisible() const {
   std::vector<const model::Package*> visible;
-  // In the AUR view, a live search swaps the local foreign-package listing for
-  // the remote results. They are all AUR rows, so View::Browse applies no extra
-  // view filter while still reusing the catalog's query + sort.
-  if (state_.view == model::View::Aur && aur_search_active_) {
+  // With the AUR source selected, a live search swaps the local foreign-package
+  // listing for the remote results. They are all AUR rows, so View::Browse applies
+  // no extra view filter while still reusing the catalog's query + sort.
+  if (state_.source_filter == model::Source::Aur && aur_search_active_) {
     visible = aur_results_.Visible(model::View::Browse, state_.query, state_.sort);
   } else if (state_.view == model::View::Collections) {
     // Collections: the picker shows no package rows (leaving `visible` empty); an
@@ -198,14 +208,14 @@ std::vector<const model::Package*> App::CurrentVisible() const {
     visible = catalog_.Visible(state_.view, state_.query, state_.sort);
   }
 
-  // Repo filter (toggled with 'f'): narrow the list to a single source. Applied
-  // as a post-filter so every path above stays untouched; harmless on the empty
-  // picker path. C++17 erase/remove idiom keeps it allocation-free.
-  if (state_.filter_active) {
-    const model::Repo keep = state_.repo_filter;
+  // Source filter (the SOURCES axis, cycled with 'f'): narrow the list to one
+  // ecosystem. Applied as a post-filter so every path above stays untouched;
+  // harmless on the empty picker path. Source::All keeps everything.
+  if (state_.source_filter != model::Source::All) {
+    const model::Source keep = state_.source_filter;
     visible.erase(std::remove_if(visible.begin(), visible.end(),
                                  [keep](const model::Package* package) {
-                                   return package->repo != keep;
+                                   return !model::RepoInSource(package->repo, keep);
                                  }),
                   visible.end());
   }
@@ -237,11 +247,19 @@ void App::MoveSelection(int delta) {
 void App::SwitchView(model::View view) {
   state_.view = view;
   state_.status_message.clear();
-  // Each visit to the AUR view starts on the local foreign packages; a fresh
-  // Enter re-runs the live search.
-  aur_search_active_ = false;
   // Entering Collections (or leaving it) always starts on the picker.
   state_.active_collection = -1;
+  ResetSelection();
+}
+
+void App::SwitchSource(model::Source source) {
+  // Leaving the AUR source drops any live-search overlay so the next source shows
+  // its own local rows immediately; a fresh Enter on AUR re-runs the search.
+  if (source != model::Source::Aur) {
+    aur_search_active_ = false;
+  }
+  state_.source_filter = source;
+  state_.status_message.clear();
   ResetSelection();
 }
 
@@ -291,34 +309,14 @@ void App::ToggleSort() {
   state_.status_message.clear();
 }
 
-void App::CycleRepoFilter() {
-  // One step through OFF → each enabled repo stop → OFF. The pacman repos are
-  // always present; AUR / Flatpak / Homebrew appear only when the user surfaced
-  // them, so the filter never stops on a manager they turned off.
-  std::vector<model::Repo> stops = {model::Repo::Core, model::Repo::Extra, model::Repo::Multilib};
-  if (state_.managers.aur) {
-    stops.push_back(model::Repo::Aur);
-  }
-  if (state_.managers.flatpak) {
-    stops.push_back(model::Repo::Flatpak);
-  }
-  if (state_.managers.homebrew) {
-    stops.push_back(model::Repo::Homebrew);
-  }
-
-  if (!state_.filter_active) {
-    state_.filter_active = true;
-    state_.repo_filter = stops.front();
-  } else {
-    const auto it = std::find(stops.begin(), stops.end(), state_.repo_filter);
-    if (it == stops.end() || std::next(it) == stops.end()) {
-      state_.filter_active = false;  // wrap back to OFF
-    } else {
-      state_.repo_filter = *std::next(it);
-    }
-  }
-  state_.status_message.clear();
-  ResetSelection();
+void App::CycleSource() {
+  // One step along the SOURCES list, which begins with All. Because All is index
+  // 0, advancing past the last enabled source wraps naturally back to it, so `f`
+  // reads as "All → pacman → each enabled source → All".
+  const std::vector<model::Source> sources = EnabledSources(state_.managers);
+  const auto it = std::find(sources.begin(), sources.end(), state_.source_filter);
+  const size_t index = it == sources.end() ? 0 : static_cast<size_t>(it - sources.begin());
+  SwitchSource(sources[(index + 1) % sources.size()]);
 }
 
 void App::LoadDetailFor(const model::Package& package) {
@@ -662,24 +660,32 @@ void App::ApplyMarked() {
 
   // Partition the marked set by the action each package implies, tracking which
   // managers are involved. pacman and AUR share one invocation (pacman -Rs for
-  // removal, the helper for installs), so the only hard split is flatpak vs the
-  // native managers - a batch can't mix those, and can't mix installs + removes.
+  // removal, the helper for installs) and so combine freely; every other manager
+  // (flatpak, homebrew, npm, bun, pnpm) has its own CLI and owns a batch outright,
+  // so a batch can't mix one of those with anything else - or mix installs and
+  // removes.
   std::vector<std::string> installs;
   std::vector<std::string> removes;
-  bool has_flatpak = false;
-  bool has_native = false;
+  bool has_native = false;  // pacman or AUR
   bool any_aur = false;
+  system::Manager exclusive = system::Manager::Pacman;  // the non-native manager, if any
+  bool has_exclusive = false;
+  bool mixed_exclusive = false;  // two different non-native managers marked together
   for (const std::string& name : state_.marked) {
     const model::Package* package = FindPackage(name);
     if (package == nullptr) {
       continue;  // marked something no longer present; skip it
     }
     const system::Manager manager = ManagerForRepo(package->repo);
-    if (manager == system::Manager::Flatpak) {
-      has_flatpak = true;
-    } else {
+    if (manager == system::Manager::Pacman || manager == system::Manager::Aur) {
       has_native = true;
       any_aur = any_aur || manager == system::Manager::Aur;
+    } else {
+      if (has_exclusive && exclusive != manager) {
+        mixed_exclusive = true;
+      }
+      exclusive = manager;
+      has_exclusive = true;
     }
     (package->installed ? removes : installs).push_back(name);
   }
@@ -688,8 +694,8 @@ void App::ApplyMarked() {
     state_.status_message = "marked set mixes installs and removes - apply one kind at a time";
     return;
   }
-  if (has_flatpak && has_native) {
-    state_.status_message = "marked set mixes flatpak and pacman/AUR - apply one manager at a time";
+  if (mixed_exclusive || (has_exclusive && has_native)) {
+    state_.status_message = "marked set mixes package managers - apply one manager at a time";
     return;
   }
   if (installs.empty() && removes.empty()) {
@@ -700,11 +706,11 @@ void App::ApplyMarked() {
   const bool installing = !installs.empty();
   const std::vector<std::string>& names = installing ? installs : removes;
   const system::Action action = installing ? system::Action::Install : system::Action::Remove;
-  // An AUR helper installs repo + AUR together; removals and pure-repo installs
-  // go through pacman; flatpak has its own tool.
-  const system::Manager manager = has_flatpak             ? system::Manager::Flatpak
+  // A non-native manager owns the batch outright; otherwise an AUR helper installs
+  // repo + AUR together, while removals and pure-repo installs go through pacman.
+  const system::Manager manager = has_exclusive             ? exclusive
                                   : (installing && any_aur) ? system::Manager::Aur
-                                                          : system::Manager::Pacman;
+                                                            : system::Manager::Pacman;
 
   std::string error;
   std::string command = system::BuildBatchCommandLine(action, names, manager, tools_, error);
@@ -1159,9 +1165,9 @@ void App::ApplyPendingTransaction() {
 bool App::HandleSearchEvent(const Event& event) {
   if (event == Event::Escape || event == Event::Return) {
     state_.search_focused = false;
-    // Enter in the AUR view submits the term to the live RPC search; Escape and
-    // the other views just defocus, keeping the as-you-type local filter.
-    if (event == Event::Return && state_.view == model::View::Aur) {
+    // Enter with the AUR source selected submits the term to the live RPC search;
+    // Escape and every other source just defocus, keeping the local filter.
+    if (event == Event::Return && state_.source_filter == model::Source::Aur) {
       LaunchAurSearch();
     }
     return true;
@@ -1220,6 +1226,16 @@ bool App::HandleMouse(Event event) {
       state_.search_focused = false;
       SwitchView(kViewHotkeys[static_cast<size_t>(nav)].second);
       return true;
+    }
+    // A click on a SOURCES row jumps straight to that source (the second axis).
+    const int src = ui::SourceEntryAt(state_, mouse.x, mouse.y);
+    if (src >= 0) {
+      const std::vector<model::Source> sources = EnabledSources(state_.managers);
+      if (src < static_cast<int>(sources.size())) {
+        state_.search_focused = false;
+        SwitchSource(sources[static_cast<size_t>(src)]);
+        return true;
+      }
     }
     const int row = ui::ListIndexAt(state_, CurrentRowCount(), mouse.x, mouse.y);
     if (row >= 0) {
@@ -1395,7 +1411,7 @@ bool App::HandleEvent(const Event& event) {
     return true;
   }
   if (event == Event::Character(state_.keys.filter)) {
-    CycleRepoFilter();
+    CycleSource();
     return true;
   }
   if (event == Event::Character(state_.keys.update)) {
