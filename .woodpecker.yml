@@ -4,6 +4,15 @@ when:
   - event: [push, pull_request, tag]
 
 steps:
+  # get.sh is piped into a shell on other people's machines, so a broken push
+  # breaks their install, not just our build. Lint it before anything else.
+  lint-installers:
+    image: archlinux:latest
+    commands:
+      - pacman -Syu --noconfirm --needed shellcheck
+      - shellcheck -s sh get.sh
+      - shellcheck -s bash install.sh
+
   build-and-test:
     image: archlinux:latest
     commands:
