@@ -50,13 +50,38 @@ corners, machined chrome, a single orange accent, and mono data type.
 ## Quick start
 
 ```sh
+curl -fsSL https://codeberg.org/m1stD3V/pacseek/raw/branch/main/get.sh | sh
+```
+
+That builds the latest tagged release from source and installs it to `~/.local`
+- no root, nothing left behind but the binary. Pass options through with
+`sh -s --`:
+
+```sh
+curl -fsSL .../get.sh | sh -s -- --system        # install to /usr/local (sudo)
+curl -fsSL .../get.sh | sh -s -- --prefix ~/opt  # custom prefix
+curl -fsSL .../get.sh | sh -s -- --ref main      # build the tip of main
+curl -fsSL .../get.sh | sh -s -- --help          # every option
+```
+
+Piping a script into a shell is a trust decision, so
+[read it first](get.sh) if you'd rather - it's short, and it does exactly what
+the clone-and-build below does.
+
+<details>
+<summary>Already cloned the repo?</summary>
+
+```sh
 ./install.sh                 # build + install to ~/.local (no root)
 ./install.sh --system        # build + install to /usr/local (uses sudo)
 ./install.sh --help          # prefix / build-dir / jobs options
 ```
 
-`install.sh` verifies the toolchain, does a Release build, installs, and - if the
-install dir isn't on your `PATH` - prints the exact line to add for your shell.
+</details>
+
+Either way the installer verifies the toolchain, does a Release build, installs,
+and - if the install dir isn't on your `PATH` - prints the exact line to add for
+your shell.
 
 Then run it:
 

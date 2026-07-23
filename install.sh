@@ -35,7 +35,10 @@ else
   BOLD=""; DIM=""; ACCENT=""; GOOD=""; BAD=""; WARNC=""; RESET=""
 fi
 
+# get.sh has already printed a header before handing off, so it sets
+# PACSEEK_NO_BANNER to keep the run reading as one sequence of steps.
 banner() {
+  [ -n "${PACSEEK_NO_BANNER:-}" ] && return 0
   printf '%s\n' "${BOLD}${ACCENT}█ PACSEEK${RESET}${DIM} · installer${RESET}"
   printf '%s\n' "${DIM}────────────────────────────────────${RESET}"
 }
